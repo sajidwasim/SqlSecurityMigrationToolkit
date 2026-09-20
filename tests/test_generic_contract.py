@@ -7,6 +7,7 @@ GENERIC = (ROOT / 'Invoke-SqlSecurityMigration-Generic.ps1').read_text(encoding=
 CONFIG = (ROOT / 'modules' / 'Config.psm1').read_text(encoding='utf-8-sig')
 BAT = (ROOT / 'Run-SqlSecurityMigration.bat').read_text(encoding='utf-8-sig')
 ENGINE = (ROOT / 'Invoke-SqlSecurityMigration.ps1').read_text(encoding='utf-8-sig')
+README = (ROOT / 'README.md').read_text(encoding='utf-8-sig')
 
 
 class GenericContractTests(unittest.TestCase):
@@ -27,6 +28,12 @@ class GenericContractTests(unittest.TestCase):
         self.assertIn('$script:TemplateEnabled=[bool]$EnableCommonTemplate', ENGINE)
         self.assertIn("if($script:TemplateEnabled){", ENGINE)
         self.assertIn("PostPlan-Log 'SKIP: CommonTemplate disabled by profile policy'", ENGINE)
+
+    def test_agents_use_parameterized_connectivity_helper(self):
+        self.assertIn('tools/Test-SqlConnection.ps1', README)
+        self.assertIn('-ExpectedServerName', README)
+        self.assertIn('Do not create an ad-hoc connection script', README)
+        self.assertIn('Use `-TrustServerCertificate` only when a human has explicitly approved', README)
 
     def test_sanitized_examples_are_json_and_no_application_adapter(self):
         examples = sorted((ROOT / 'config' / 'examples').glob('*.json'))

@@ -15,7 +15,26 @@ The performance helper scripts and wrapper cleanup changes are present. The cano
 - `Invoke-SqlSecurityRemediation.ps1`: derives remediation worklists; its own APPLY is not implemented.
 - `modules/Config.psm1`, `config/schema/profile.schema.json`, and `config/examples/`: configuration processing, schema and sanitized examples.
 - `tools/Get-SqlDatabaseCandidates.ps1`: read-only, two-instance database candidate discovery.
+- `tools/Test-SqlConnection.ps1`: read-only, parameterized SQL connectivity and endpoint-identity validation.
 - `Run-SqlSecurityMigration.bat`: simple profile/mode launcher; it does not independently perform AST validation or approve individual SQL operations.
+
+## Agent SQL Connectivity Procedure
+
+When an agent needs a SQL connection, it must first read and use `tools/Test-SqlConnection.ps1` from this repository. Do not create an ad-hoc connection script or hardcode server names, database names, credentials, or certificate settings.
+
+Use caller-supplied values and validate the canonical endpoint returned by SQL Server:
+
+```powershell
+$tool = Join-Path (Get-Location) 'tools\Test-SqlConnection.ps1'
+$instance = '<approved-instance>'
+$canonicalName = '<expected-canonical-server-name>'
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File $tool `
+  -ServerInstance $instance `
+  -ExpectedServerName $canonicalName
+```
+
+The helper uses Windows Integrated Authentication and encrypted transport. It performs only read-only validation queries and returns structured JSON with a success exit code. Use `-TrustServerCertificate` only when a human has explicitly approved that exact endpoint exception; it retains encryption but does not validate certificate identity. Treat endpoint mismatch, login failure, incomplete metadata, or encryption failure as blockers. Store any output in an ACL-protected, ignored local results directory and never publish it.
 
 ## Validate a profile without connecting to SQL
 
