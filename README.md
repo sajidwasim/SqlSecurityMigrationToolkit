@@ -1,57 +1,49 @@
-# Generic SQL Server Security Migration Toolkit
+# SQL Server Security Migration Toolkit
 
-This repository provides a configuration-driven SQL Server Database Engine security inventory, comparison, plan, approval, migration, and verification toolkit. It contains no application adapter and does not infer application ownership from names, roles, databases, or identities.
+A profile-driven toolkit for SQL Server Database Engine security inventory, comparison, read-only PLAN reporting and guarded, separately authorized APPLY. The core is application-agnostic; there are no application adapters or hardcoded server/database names.
 
-## Safety Status
+## Current verification status
 
-PLAN and VERIFY are read-only. APPLY requires a complete, integrity-checked PLAN inventory, explicit stage approvals, exact target confirmation, and a designated disposable lab or separately authorized target. No SQL write is authorized by this repository review. Static and offline behavioral tests do not prove live SQL APPLY behavior.
+The canonical engine (`Invoke-SqlSecurityMigration.ps1`) exposes `-Mode Plan` and `-Mode Apply`; it does **not** expose a standalone `Verify` mode. After APPLY, `Finalize-Session` rechecks source drift and replans against fresh target metadata within the supported scope. The remediation script has a `Verify` mode that checks report production, **not** independent SQL security equivalence; its remediation APPLY deliberately fails closed. Static tests are not proof of a successful live SQL APPLY. See [known gaps](docs/KNOWN-GAPS.md).
 
-## Entry Points
+The performance helper scripts and wrapper cleanup changes are present. The canonical engine's expensive PLAN paths have **not** been demonstrated to meet a five-minute target. See [performance runbook](docs/PERFORMANCE-RUNBOOK.md).
 
-- `Invoke-SqlSecurityMigration-Generic.ps1` loads and validates a profile, resolves safe defaults, and invokes the canonical engine.
-- `Invoke-SqlSecurityMigration.ps1` is the PowerShell 5.1-compatible migration engine.
-- `Invoke-SqlSecurityRemediation.ps1` produces generic external-ownership, identity, dependency, and approval worklists from a PLAN.
-- `Run-SqlSecurityMigration.bat` is a thin profile-driven launcher with no environment defaults.
+## Components
 
-## Profile Validation Dry Run
+- `Invoke-SqlSecurityMigration-Generic.ps1`: validates a JSON profile and passes supported settings to the canonical engine.
+- `Invoke-SqlSecurityMigration.ps1`: SQL inventory, planning, manifest, guarded APPLY and post-stage reconciliation.
+- `Invoke-SqlSecurityRemediation.ps1`: derives remediation worklists; its own APPLY is not implemented.
+- `modules/Config.psm1`, `config/schema/profile.schema.json`, and `config/examples/`: configuration processing, schema and sanitized examples.
+- `tools/Get-SqlDatabaseCandidates.ps1`: read-only, two-instance database candidate discovery.
+- `Run-SqlSecurityMigration.bat`: simple profile/mode launcher; it does not independently perform AST validation or approve individual SQL operations.
 
-Use `-ValidateOnly` to validate configuration and print the resolved redacted profile without connecting to SQL:
+## Validate a profile without connecting to SQL
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Invoke-SqlSecurityMigration-Generic.ps1 `
   -ProfilePath .\config\examples\one-to-one.json -ValidateOnly
 ```
 
-Sanitized profiles cover discovery-only, one-to-one, renamed subset, one-to-many template, SQL authentication workflow, Windows identity mapping, and explicit external-ownership decisions. Replace all placeholder instances and databases before PLAN.
+The example contains placeholders. **Do not execute PLAN using an unreviewed example.** Copy it into ignored `config/local/`, populate approved instances, database scope and exclusions, check schema validation, and confirm the resolved profile. SQL connection logic in the current engine uses Windows Integrated authentication and encrypted transport. Profile options are not evidence that other authentication or connection behaviors are implemented end to end.
 
-## PLAN
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File .\Invoke-SqlSecurityMigration-Generic.ps1 `
-  -ProfilePath .\config\examples\one-to-one.json -Mode Plan
-```
-
-PLAN collects SQL metadata, normalizes scalar records, creates a pinned source inventory and destination snapshot, derives only explicitly configured template evidence, and writes review artifacts. It never performs target security DDL.
-
-## APPLY Template
+## Read-only PLAN
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File .\Invoke-SqlSecurityMigration-Generic.ps1 `
-  -ProfilePath .\config\local\approved-profile.json -Mode Apply `
-  -InventoryPath 'C:\Secure\Results\ApprovedSession\SourceInventory'
+  -ProfilePath .\config\local\reviewed-profile.json -Mode Plan
 ```
 
-Do not use this template until the exact PLAN, target, scope, mapping hash, capability result, approval record, and lab/write authority are independently confirmed. Target-only objects are preserved; DROP, REVOKE, implicit identity remapping, AD writes, and application provisioning are not performed.
+PLAN reads SQL metadata and writes **sensitive local** session artifacts in `Results/` or an approved restricted output directory; it does not issue security DDL. The operator must inspect scope on **both** instances before running. Current preflight considers all ONLINE user databases on the destination, minus exclusions; additional destination databases can become common-template candidates. The current engine derives common-template evidence even when a profile's `templatePolicy.enabled` is false. Do not assume that switch suppresses derivation or additional-database planning; explicitly review/exclude unrelated destination databases and inspect the resulting action report. No rename or identity mapping may be inferred automatically.
 
-## Testing
+## APPLY boundary
+
+APPLY requires a reviewed pinned PLAN inventory, integrity checks, source-drift validation, a fresh target comparison, appropriate switches, interactive `REVIEWED` acknowledgement and exact target confirmation. It must be separately authorized for a specific destination and stage. Do not run it based on this README or a PLAN request. Target-only security is preserved by the engine; effective AD access, externally provisioned security and unsupported securables are not established by PLAN alone.
+
+## Tests
 
 ```powershell
-python -m unittest -q tests.test_static tests.test_v2_contract tests.test_plan_apply_contract tests.test_remediation_contract tests.test_generic_contract
+python -m unittest discover -s tests -p 'test_*.py'
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\SmokeTest.ps1
 ```
 
-The tests are offline contracts and AST checks. SQL APPLY integration remains unverified until an explicitly designated disposable SQL Server lab is available. The repository supports Windows Integrated Authentication by default and does not persist SQL password hashes.
-
-## Scope Limits
-
-The engine compares explicit SQL Server security metadata. effective AD group nesting, application behavior, external provisioning, unsupported securables, SQL Agent credentials, certificate/key material, and cross-database rollback require separate evidence and are reported as unsupported or external prerequisites. Legacy engine versions and cloud services require capability-specific validation; no version is considered live-supported solely from static tests.
+These are offline/static checks; run the PowerShell test on a compatible Windows host. A disposable SQL lab is required before claiming end-to-end APPLY correctness. See [test strategy](docs/TEST-STRATEGY.md), [workflow](docs/MIGRATION-WORKFLOW.md) and [parameter guide](docs/SQL_SECURITY_MIGRATION_PARAMETERS.md). Never commit real profiles, inventories, logs, identity decisions or session reports to GitHub.

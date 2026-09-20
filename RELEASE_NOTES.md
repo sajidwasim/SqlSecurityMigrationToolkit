@@ -1,12 +1,17 @@
-# v2.0 migration-engine changes from v1.0.1
+# Release notes and evidence status
 
-1. PLAN saves typed, complete source-side server/database metadata in `SourceInventory` as XML with schema and readable per-database CSVs. It does not store SQL login password hashes.
-2. PLAN produces SHA256 inventory/plan manifest, root-cause grouping and source-target role coverage. PLAN is read-only; duplicate end-of-plan SQL collection is removed.
-3. APPLY requires the exact source inventory directory from a reviewed PLAN; snapshot XML, PLAN CSV and optional mapping CSVs are verified before executing. Cannot change original source/target/database scope, nor disable source-drift checking.
-4. At start and before each stage, live source metadata is checked against PLAN; target is re-inventoried and remaining eligible actions are recalculated. SQL hash read only during LOGINS phase in-memory and verified against the snapshot's non-hash metadata.
-5. Database owner SID differences are explicit manual-review records, rather than automatically blocking all user changes. Actual SID/role-owner conflicts still block sensitive dependent changes.
-6. Equal explicit role-permission states do not produce one blocker per permission just because role owner differs. The owner discrepancy is reported once per role/database; unsafe new memberships remain gated.
-7. Missing SharePoint_Shell_Access is NOT created using CREATE ROLE. SharePoint provisioning is required. New-farm machine identities require approved explicit identity mappings rather than treating AllowMachineAccounts=Y as proof of membership.
-8. BAT asks for approved PLAN SourceInventory path in APPLY, detects Mark of the Web with approval, parses PowerShell before connections, never changes global execution policy, and prompts separately for sensitive operations.
+## Generic toolkit baseline
 
-**Verification:** Python static checks and ZIP CRC only; no Windows PowerShell AST or live SQL execution has been performed by the author. Mandatory Windows/SQL integration checklist is in tests/. This is not a production-certified release.
+The repository contains a profile-driven wrapper, the canonical SQL Server security migration engine, remediation reporting, schema/example profiles, tests, and local performance/scope-discovery helpers. Current operation modes of the canonical engine are `Plan` and `Apply`; the remediation command separately exposes `Plan`, `Verify` (report-production check), and `Apply` (deliberately fails closed). There is no independently validated, standalone SQL VERIFY command.
+
+## Current changes and limitations
+
+- Generic source/target selection comes from configuration and operator-supplied scope. No application adapter is required.
+- The wrapper has `try/finally` cleanup for files it creates and restores a pre-existing external-ownership environment variable.
+- Read-only candidate discovery, PLAN-action CSV comparison and session-timeline helper scripts are available.
+- Current documentation no longer presents historical migration counts, application-specific database lists or previous environment decisions as generic instructions.
+- **Performance refactoring of the canonical engine remains incomplete and unbenchmarked.** Helper tools are not evidence of a faster PLAN.
+- **Live SQL APPLY has not been validated through the repository evidence inspected for this release.** Static contract/AST tests cannot establish successful database execution or effective access equivalence.
+- The engine currently derives a common template even when the profile's template policy is disabled and still considers other nonexcluded ONLINE destination user databases; review scope explicitly before PLAN.
+
+See [README](README.md), [architecture](docs/ARCHITECTURE.md), [known gaps](docs/KNOWN-GAPS.md), and [performance runbook](docs/PERFORMANCE-RUNBOOK.md). No production certification, application support guarantee, or completed performance target is asserted here.

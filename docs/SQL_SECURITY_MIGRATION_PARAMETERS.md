@@ -1,196 +1,46 @@
-# SQL Security Migration Toolkit — Parameter Register and Copilot Operating Contract
+# Generic configuration and parameter guide
 
-**Document version:** 1.1 | **Role:** Historical migration profile and parameter decision register. It is not a runtime default, approval, or generic configuration schema.
+This is a **current generic reference**, not a historical migration profile, database list, approval record or execution authorization. Source instances, destination instances, database scope, exclusions, ownership decisions and identities are operator-supplied and must not be hardcoded in this repository. The PowerShell scripts and [profile schema](../config/schema/profile.schema.json) are authoritative if they change.
 
-> The active product is profile-driven and application-agnostic. Values and names in Sections A, B, D, E, and F describe a prior environment only. Do not copy them into new profiles or commands. Use `config/examples/*.json`, `Invoke-SqlSecurityMigration-Generic.ps1 -ValidateOnly`, and the current script parameters as the authoritative generic interface.
+## Recommended entry point
 
-> **Important:** This is a configuration and decision register, **not** a pre-approved execution order. Values below marked **CONFIRMED** were supplied in the previous PLAN session or project discussion. `REVIEW`, `REQUIRED AT RUNTIME`, and `NOT APPROVED` mean Copilot must not guess. The user has not authorized live APPLY by asking for this document. The working Git repository may differ from the inspected v2.0 ZIP after Copilot's changes: re-read the current script and launcher before following this register; report differences and update the register only with the user's authorization.
+`Invoke-SqlSecurityMigration-Generic.ps1 -ProfilePath <reviewed-local-json> [-Mode Plan|Apply] [-ValidateOnly] [-Stage Prompt|Logins|Users|Roles|ServerSecurity|All] [-InventoryPath <path>] [-OutputDirectory <path>] [-TrustServerCertificate] [-ConnectTimeoutSeconds <1..120>] [-CommandTimeoutSeconds <1..1800>]`.
 
-## A. Confirmed migration profile
+Defaults currently include `-Mode Plan`, `-Stage Prompt`, connection timeout 15 seconds, command timeout 120 seconds, and no certificate-validation bypass unless explicitly configured. `-ValidateOnly` validates/prints configuration without making SQL connections. `-InventoryPath` is required by the wrapper for APPLY and must identify the reviewed PLAN's `SourceInventory` directory. The wrapper delegates to the canonical engine and restores the inherited external-ownership environment variable and its own temporary files in `finally`.
 
-The approved architecture is a complete source-to-destination security reconciliation: the source has 15 authoritative TEST databases, while the new destination has 30 restored databases. PLAN inventories all 15 source databases and all 30 destination databases, applies exact source security to the 15 name matches, and derives an evidence-backed common template for the 15 additional destination databases. APPLY requires explicit approval of that derived template.
+The profile schema supplies source/target endpoints, connection options, authentication configuration, scope, database/identity mappings, template policy, operation policies, and artifact policy. **The current canonical SQL connection builder uses Windows Integrated authentication, `Encrypt=True`, and pooling disabled; do not assume schema fields for SQL authentication, custom application name or pooling are implemented end-to-end.** Verify behavior in code and an authorized environment before relying on such fields.
 
-| Setting | Recorded value | Status / usage |
-|---|---|---|
-| Migration type | New target SQL Server; migration and verification before handover | CONFIRMED. A new server can already contain system/security objects or earlier partial migration state. |
-| Source SQL instance | `SOURCE_SERVER` | CONFIRMED. Source must remain read-only. |
-| Target SQL instance | `TARGET_SERVER` | CONFIRMED. Do not execute against this server without explicit user authorization for the particular operation. |
-| Source SQL major version | `15` (SQL Server 2019) | Observed in PLAN output. Verify on next connection. |
-| Target SQL major version | `17` (SQL Server 2025) | Observed in PLAN output. Verify on next connection. |
-| Windows authentication | Current process identity `DOMAIN\operator` | CONFIRMED. The toolkit uses Integrated Security for both instances; no credential prompts or alternate impersonation. |
-| TLS certificate exception | `TrustServerCertificate=Y` during previous PLAN | HISTORICAL EXCEPTION ONLY. Certificate identity not validated; verify approved connection method with user/security before reuse, especially APPLY. |
-| Source database names | Exactly the 15 names in Section B | CONFIRMED migration scope. Do not substitute PROD names. |
-| Destination database names | 30 destination databases: 15 exact source-name matches plus 15 additional restored databases | CONFIRMED architecture. PLAN must inventory all 30; APPLY must not restrict itself to only matching names. |
-| Database mapping CSV | Blank for the 15 exact matches; additional destination databases use the derived common template | No rename mapping is required for the approved 15-to-30 model. Do not fabricate a source mapping for an additional database. |
-| Identity mapping CSV | Blank previously | No mappings were supplied. Do not infer old-farm-to-new-farm machine/service identities. |
-| PLAN status, v1.0.1 baseline | 12,597 already correct; 3,110 blocked; 162 deferred; 20 manual review; 723 target-only; 3,292 unresolved | Historical diagnostic only, **not** a current v2.0 inventory and **not** an APPLY approval. |
-| Inventory for APPLY | Exact `SourceInventory` directory generated by a **new, reviewed v2.0 PLAN** containing all 15 source and 30 destination inventories plus `CommonTemplate.json` | REQUIRED AT RUNTIME. Never use previous v1.0.1 PLAN output as a v2.0 manifest. |
-| Handover acceptance | Fresh verification and explicit resolution/acceptance of residual differences | REQUIRED. `Summary.json` exit 0 is not proof of effective security equivalence. |
+## Canonical engine parameters
 
-## B. Exact database scope (15 source databases)
+`Invoke-SqlSecurityMigration.ps1` currently accepts the following:
 
-Use this exact set for PLAN unless the user explicitly changes it:
+| Category | Parameters and defaults |
+|---|---|
+| Required endpoints | `-SourceInstance`, `-TargetInstance` (different SQL Server instances) |
+| Mode/stage | `-Mode Plan` (or `Apply`); `-Stage Prompt` (or `Logins`, `Users`, `Roles`, `ServerSecurity`, `All`) |
+| Scope and mappings | `-DatabaseName` (optional array), `-ExcludedDatabaseName` (optional array), `-IdentityMapCsv ''`, `-DatabaseMapCsv ''` |
+| Artifacts/connectivity | `-InventoryPath ''`, `-OutputDirectory ''`, `-TrustServerCertificate` (off), `-ConnectTimeoutSeconds 15`, `-CommandTimeoutSeconds 120` |
+| Identity controls | `-AllowWindowsLogins`, `-AllowSqlLogins`, `-AllowMachineAccounts`, `-AllowIdentityMapping`, `-IncludeAllServerLogins` (all off) |
+| Database/role controls | `-AllowCustomRoles`, `-AllowSchemas`, `-AllowDefaultSchemaChanges`, `-AllowDatabasePermissions`, `-AllowPrivilegedPermissions`, `-AllowDenies`, `-AllowPrivilegedRoles` (all off) |
+| Other controls | `-AllowServerSecurity`, `-ApproveCommonTemplate` (both off) |
 
-```text
-SourceDB_AppManagement
-SourceDB_Config
-SourceDB_Content_CentralAdmin
-SourceDB_Metadata
-SourceDB_Profile
-SourceDB_Profile_Social
-SourceDB_Profile_Sync
-SourceDB_Search
-SourceDB_Search_AnalyticsReportingStore
-SourceDB_Search_CrawlStore
-SourceDB_Search_LinksStore
-SourceDB_SecureStore
-SourceDB_StateService
-SourceDB_SubscriptionSettings
-SourceDB_UsageAndHealth
-```
+Do **not** use `-AllowApplicationRoles` or `-AllowSharePointInfrastructureDatabases`: neither parameter appears in the currently published canonical engine. Never invent unsupported switches or application-specific exceptions. There is no `-Mode Verify` in this engine. The BAT launcher prompts for a profile path and Plan/Apply mode only; SQL-stage approvals reside in the engine, not the BAT file.
 
-**Important scope distinction:** This list is the complete source inspection scope. The destination scope is all 30 user databases: exact matches use their corresponding source database; the 15 additional databases receive only the approved common template. The inspected v2.0 README states that SharePoint `Config` and `Content_CentralAdmin` changes require an explicit infrastructure-database allowance; old Search crawl/links database operations are blocked according to toolkit policy. Validate the actual current implementation, Microsoft-supported procedures and farm administrator approval before changing application-managed databases. Never silently drop databases from PLAN inventory just because APPLY may be restricted.
+## PLAN scope and current limitations
 
-## C. Complete PowerShell parameter contract (inspected v2.0 script)
+Supply a reviewed `scope.databases` exact list and exclusions in a local profile. Preflight verifies each selected source database and its mapped/exact-name destination exist as ONLINE user databases. If no source list is supplied, preflight selects source/target exact-name matches. It also enumerates the destination's ONLINE user databases independently: nonexcluded, nonmatching databases can be classified as additional template candidates. A source list or SQL LIKE discovery alone **does not** constrain destination inventory to only those names. Review the entire source/destination discovery output, include explicit exclusions for unrelated destination databases, and treat unmatched names as review items. Explicit mappings require a reviewed CSV/profile; never guess rename mappings.
 
-The following names, types and defaults are transcribed from the `param(...)` declaration of the inspected v2.0 PowerShell script. **Do not assume this remains complete after Copilot edits the code.** Reconcile any added, renamed, removed or behavior-changed parameters before use.
+The engine currently derives the common template and marks template evidence required in the manifest even when `scope.templatePolicy.enabled` is false; disabling that profile property alone does not turn template processing off. This is an implementation gap, not an approval. Review [known gaps](KNOWN-GAPS.md) before planning on an instance with unrelated databases.
 
-| Parameter | Type / declared default | PLAN value | APPLY value / decision |
-|---|---|---|---|
-| `-SourceInstance` | Mandatory `string` | `SOURCE_SERVER` | Same as approved PLAN manifest. |
-| `-TargetInstance` | Mandatory `string` | `TARGET_SERVER` | Same as approved PLAN manifest; confirm canonical target. |
-| `-Mode` | `Plan` or `Apply`; default `Plan` | `Plan` | `Apply` only after specific explicit approval. |
-| `-Stage` | `Prompt`, `Logins`, `Users`, `Roles`, `ServerSecurity`, `All`; default `Prompt` | `Prompt` only | `Prompt` unless user explicitly authorizes a specific stage. `All` is **not** pre-approved. |
-| `-DatabaseName` | `string[]`; no default | Exact 15 names above | Leave blank to inherit the exact saved manifest scope, or pass the identical 15 names; script rejects mismatches. |
-| `-IdentityMapCsv` | `string`; default empty | Empty unless approved mappings are supplied before PLAN | Inherit manifest's pinned mapping file by leaving blank. Do not introduce new mappings in APPLY. |
-| `-DatabaseMapCsv` | `string`; default empty | Empty for same-name DBs unless approved changes | Inherit manifest by leaving blank; no new mapping in APPLY. |
-| `-InventoryPath` | `string`; default empty | Empty; PLAN creates snapshot | Full directory of **approved v2.0 PLAN** `SourceInventory`, not the session root, CSV, ZIP or v1 inventory. |
-| `-OutputDirectory` | `string`; default empty | Default toolkit-local `Results`, unless a secured approved path is supplied | Separate new session under secured `Results`; protect original PLAN session intact. |
-| `-TrustServerCertificate` | Switch; default off | Previous PLAN used on, **requires renewed review** | Off unless independently approved; prefer trusted certificate. |
-| `-AllowWindowsLogins` | Switch; default off | Leave off | REVIEW; enable only to create approved Windows logins. |
-| `-AllowSqlLogins` | Switch; default off | Leave off | REVIEW; may create approved SQL logins with hash/SID compatibility; no automatic SID overwrite. |
-| `-AllowMachineAccounts` | Switch; default off | Leave off | NOT APPROVED without explicit service/machine-account mapping and farm/AD validation. |
-| `-AllowApplicationRoles` | Switch; default off | Leave off | NOT APPROVED by default; application-managed objects require separate review. |
-| `-AllowCustomRoles` | Switch; default off | Leave off | REVIEW; generic custom-role changes only if approved. |
-| `-AllowSchemas` | Switch; default off | Leave off | REVIEW; create missing schemas only after owner/dependency validation. |
-| `-AllowDefaultSchemaChanges` | Switch; default off | Leave off | REVIEW; existing-user changes require approval. |
-| `-AllowDatabasePermissions` | Switch; default off | Leave off | REVIEW; explicit database permissions only after prerequisite and privilege assessment. |
-| `-AllowPrivilegedPermissions` | Switch; default off | Leave off | NOT APPROVED by default; explicit privileged-permission authorization required. |
-| `-AllowDenies` | Switch; default off | Leave off | NOT APPROVED by default; review each DENY. |
-| `-AllowPrivilegedRoles` | Switch; default off | Leave off | NOT APPROVED by default; review privileged role membership. |
-| `-AllowServerSecurity` | Switch; default off | Leave off | NOT APPROVED by default; server roles/permissions affect entire instance. |
-| `-AllowIdentityMapping` | Switch; default off | Leave off | Enable only after reviewing a mapping supplied and pinned during PLAN. Required when PLAN had an identity map. |
-| `-IncludeAllServerLogins` | Switch; default off | Leave off | NOT APPROVED by default; normally scope to logins relevant to selected DBs. |
-| `-AllowSharePointInfrastructureDatabases` | Switch; default off | Leave off | NOT APPROVED by default; Config/CentralAdmin SQL changes require separate signoff. |
-| `-ApproveCommonTemplate` | Switch; default off | Not used; PLAN derives and reports the template | Required for APPLY after reviewing `CommonTemplate.json` and its evidence report. |
-| `-ConnectTimeoutSeconds` | `int`, 1–120; default `15` | `15` unless timeout evidence justifies change | Same or approved adjustment. |
-| `-CommandTimeoutSeconds` | `int`, 1–1800; default `120` | `120` unless timeout evidence justifies change | Same or approved adjustment. |
+The engine requires sufficiently complete metadata (including sysadmin in server inventory), compares selected source and target SQL security records and writes sensitive reports locally. `TrustServerCertificate` retains encrypted transport but bypasses certificate identity validation; use only where expressly approved. SQL server/catalog capabilities require actual inspection, not version assumptions.
 
-**Launcher mismatch to know:** The inspected BAT asks one `Allow privileged role memberships/permissions` question (`SSM_PRIV`) and maps `Y` to **both** `AllowPrivilegedRoles` and `AllowPrivilegedPermissions`. The PowerShell script exposes them separately. Copilot must disclose this coupling and not treat one affirmative answer as authorization for two privilege categories without clear user approval. The BAT does not prompt for `-Stage` until the PowerShell APPLY stage prompt. `-OutputDirectory` and timeout parameters are also not exposed by BAT prompts; use explicit PowerShell invocation or update BAT with approval if non-defaults are needed.
+## Read-only discovery and PLAN sequence
 
-## D. PLAN invocation reference
+1. Run [the discovery helper](../tools/Get-SqlDatabaseCandidates.ps1) against both explicitly approved endpoints with an explicit `-DatabaseLikePattern`. It queries `sys.databases` using a parameterized LIKE pattern and returns matches, states and differences. Discovery does not authorize a mapping, template or PLAN scope.
+2. Review ONLINE status, exact matching, other destination databases, exclusions, metadata visibility, collation and TLS. Create a local, ignored JSON profile from `config/examples/one-to-one.json` with only approved values.
+3. Run the wrapper with `-ValidateOnly`. Verify the resolved configuration and inspect the current code/tests. Then run `-Mode Plan` **only** under the separately authorized read-only scope.
+4. Keep the entire `Results/<session>` directory restricted and intact, including `SourceInventory/`, `Plan01_Plan.csv`, logs and summary. Review every planned, blocked, deferred, manual and target-only item. Reports are evidence, not approvals.
 
-The following is a **template, not a report of execution**. It uses the current Windows identity and performs no SQL DDL. A new PLAN may be authorized independently of APPLY. Run the parser/smoke checks and inspect the current repo code first.
+## APPLY (not authorized by documentation)
 
-```powershell
-$dbs = @(
-  'SourceDB_AppManagement',
-  'SourceDB_Config',
-  'SourceDB_Content_CentralAdmin',
-  'SourceDB_Metadata',
-  'SourceDB_Profile',
-  'SourceDB_Profile_Social',
-  'SourceDB_Profile_Sync',
-  'SourceDB_Search_AnalyticsReportingStore',
-  'SourceDB_Search',
-  'SourceDB_Search_CrawlStore',
-  'SourceDB_Search_LinksStore',
-  'SourceDB_SecureStore',
-  'SourceDB_StateService',
-  'SourceDB_SubscriptionSettings',
-  'SourceDB_UsageAndHealth'
-)
-
-.\Invoke-SqlSecurityMigration.ps1 `
-  -SourceInstance 'SOURCE_SERVER' `
-  -TargetInstance 'TARGET_SERVER' `
-  -Mode Plan `
-  -DatabaseName $dbs
-  # Add -TrustServerCertificate ONLY if specifically approved for verified endpoints.
-  # Add -IdentityMapCsv / -DatabaseMapCsv only when approved and available BEFORE PLAN.
-```
-
-Do not interpret code-fence comments as arguments to the preceding command. For cases where TLS identity verification cannot succeed, stop and seek approval or establish a valid trusted SQL certificate; do not silently enable certificate bypass.
-
-PLAN reports to review: `Session.log`, `Plan01_Plan.csv`, `Plan01_RootCauses.csv`, `Plan01_Exceptions.csv`, `Plan01_RoleCoverage.csv`, `Plan01_RoleSummary.csv`, `Plan01_UserMappings.csv`, `Plan01_Logins.csv`, `Summary.json`, and all `SourceInventory` files. Confirm the inventory manifest contains the correct pair, 15 database mappings, and the intended identity map. Preserve **the entire session directory**, because APPLY verifies `Plan01_Plan.csv` alongside snapshot files.
-
-## E. APPLY parameter decision register — deliberately not pre-approved
-
-APPLY is a separate authorization. After reviewing a *new* v2.0 PLAN, fill this table with the user's explicit decisions. No agent may turn blank values into `Y`.
-
-| Decision | Approved value | Evidence / approver |
-|---|---|---|
-| Which PLAN session and `SourceInventory` path? | **PENDING** | Must be exact directory; do not guess a timestamp/path. |
-| PLAN comparison and root causes reviewed? | **PENDING** | Record approved report/version. |
-| Actual source/target instances verified? | **PENDING** | Canonical identities checked. |
-| Actual database scope and target names verified? | **PENDING** | All 15 or newly approved scope. |
-| Identity mapping approved? | **PENDING** | AD/farm owner confirmation, if applicable. |
-| Database mapping approved? | **PENDING** | Same names unless explicit mapping approved. |
-| TLS certificate handling approved? | **PENDING** | Note if temporary TrustServerCertificate exception applies. |
-| Stage (`Logins` / `Users` / `Roles` / `ServerSecurity` / `All`)? | **PENDING** | Prefer staged execution and verification. |
-| Each `Allow*` switch and `IncludeAllServerLogins` | **PENDING INDIVIDUALLY** | Record exact switches, rationale, privilege impact and approver. |
-| SharePoint infrastructure DB and farm-managed operations? | **PENDING SEPARATE APPROVAL** | SharePoint administrator confirmation. |
-| Target change window and recovery checkpoint? | **PENDING** | No cross-database rollback. |
-| Explicit authorization to execute APPLY now? | **NO — not yet granted** | Must be given by user for actual environment. |
-
-**APPLY template (do not execute until approvals above are completed):**
-
-```powershell
-# PRECONDITION: user specifically authorized APPLY, verified PLAN and exact target.
-# Replace the placeholder path with the ACTUAL approved v2.0 PLAN SourceInventory directory.
-$approvedInventory = '<FULL_APPROVED_PLAN_SESSION_PATH>\SourceInventory'
-
-.\Invoke-SqlSecurityMigration.ps1 `
-  -SourceInstance 'SOURCE_SERVER' `
-  -TargetInstance 'TARGET_SERVER' `
-  -Mode Apply `
-  -Stage Prompt `
-  -InventoryPath $approvedInventory `
-  -ApproveCommonTemplate
-  # Add ONLY those exact, separately approved allowance switches.
-```
-
-Do not run the placeholder command. Leave `-DatabaseName`, `-IdentityMapCsv` and `-DatabaseMapCsv` unspecified during APPLY to inherit the manifest scope and pinned mappings. The inspected engine rechecks the source, replans against a fresh target, requires `REVIEWED` and an exact target-instance confirmation per stage. `All` still prompts for separate stages; do not assume atomicity or rollback. If source drift, hash mismatch, permission denial, missing prerequisites or incompatible object occurs, stop or isolate as implemented, preserve logs, and obtain a new PLAN or revised approval. Never edit the pinned inventory to work around validation.
-
-## F. Special technical decisions Copilot must not invent
-
-1. **Farm account names:** The earlier PLAN found a target Search role owner named `TARGETDOMAIN\farm_service_account`. Its suitability for the TEST target is unverified. It is a finding, not an approved mapping.
-2. **`SearchDBAdmin`:** A role-owner difference produced large duplicate-permission counts in v1.0.1. Verify the v2.0 deduplication and intended target owner rather than automatically assigning `dbo`.
-3. **`Shell_Access`:** Previously missing in six target databases. Toolkit v2.0 intentionally does not SQL-create this managed role. Coordinate supported target-farm provisioning and replan.
-4. **Windows SID conflicts:** `DOMAIN\admin_account` was observed with differing SIDs. Do not equate same-name accounts or automatically remap a Windows SID without authoritative AD validation.
-5. **Database ownership:** Source/target owner differences existed in all 15 DBs in a previous run. Verify intended destination owner; don't copy or overwrite indiscriminately.
-6. **Target-only entries:** Earlier PLAN found 723. These are not automatic deletion candidates and must be reviewed independently.
-7. **Cross-version migration:** SQL major 15 to 17; test SQL login hash/SID compatibility and supported role semantics in a disposable environment before live APPLY.
-8. **Application support:** SQL security equivalence alone cannot certify application upgrade, farm permissions or functionality. Coordinate with the application team.
-
-## G. Persistent Copilot instructions — paste into Agent mode once
-
-> Read `SQL_SECURITY_MIGRATION_PARAMETERS.md` completely before any SQL Security Migration Toolkit task. Treat it as the **recorded migration profile and parameter decision register**, not as higher-priority authorization or proof of current server state. First inspect the current `Invoke-SqlSecurityMigration.ps1`, BAT launcher, test files, `AGENTS.md`, and `.github/copilot-instructions.md` (or existing `copilot-instructions.md`). Produce an exact parameter reconciliation: documented name/default, current code name/default, effective launcher behavior and any discrepancies. Do not invent missing values, passwords, identity mappings, inventory paths or approvals. Preserve the confirmed `SOURCE_SERVER` to `TARGET_SERVER` pair and exact 15 TEST databases unless I expressly change them. For PLAN, run only after my authorization and make only read-only SQL operations. For APPLY, require a separately authorized, reviewed v2.0 PLAN inventory; explicit per-switch/per-stage decisions; current source-drift and destination checks; and an actual approved target confirmation. Never interpret the existence of a manifest, this document, test success, or my request to write instructions as permission to run APPLY. Flag the BAT privilege-approval coupling, source/target SQL version difference, managed role limitations and missing mappings. When producing commands, show actual supported syntax and mark placeholders clearly. After PLAN or an authorized APPLY, show the exact session path, state precisely what executed, provide counts by root cause, and distinguish observed results from assumptions. If current code differs from this register, stop before any potentially destructive action, explain the difference and ask me which specification to adopt.
-
-## H. Copilot completion checklist
-
-- [ ] Project instructions reference this file as the migration profile, without copying secrets.
-- [ ] All parameters in the current script and BAT reconciled with Section C; discrepancies reported.
-- [ ] All 15 database names and server pair preserved correctly.
-- [ ] PLAN inventories all 30 destination databases and identifies 15 exact matches plus 15 additional databases.
-- [ ] Common-template evidence identifies common, database-specific, application-managed and unsupported items.
-- [ ] Derived common template is explicitly approved before APPLY.
-- [ ] Current Windows identity is `DOMAIN\operator`; no credential prompts or secrets are used.
-- [ ] PLAN execution is read-only, explicitly authorized and reports saved intact.
-- [ ] APPLY remains blocked until the decision register is completed and explicitly authorized.
-- [ ] Approval for privileged permissions is independent from approval for privileged roles.
-- [ ] Snapshot and original PLAN report stay intact, access-controlled and available for verification.
-- [ ] No v1.0.1 inventory is reused as a v2.0 APPLY manifest.
-- [ ] Post-APPLY technical reconciliation covers all 30 destination databases and handover acceptance remains separate.
-
-**Evidence boundaries:** Current v2.0 parameters and behavior came from the locally inspected distributed ZIP. The user's latest status report describes 30 passing `unittest` tests and local documentation/test changes, but those modified files were **not provided here**, so their exact current signatures and behaviors have not been independently inspected. This document does not claim live SQL integration or APPLY testing succeeded.
+The engine's APPLY requires a reviewed, compatible `SourceInventory` directory from that exact source/target/scope; verifies hashes/fingerprints and source drift; replans the target; requires `REVIEWED` and exact target confirmation; and restricts operations through separate switches/stages. `All` is not blanket authorization. Changing any material scope, identity mapping, inventory format or policy calls for a new PLAN and review. Remediation-script APPLY is intentionally unimplemented. Live SQL APPLY remains integration-unverified in this repository; use a disposable lab and explicit operation-specific authorization before attempting it on any real target.

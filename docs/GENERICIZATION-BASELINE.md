@@ -1,22 +1,13 @@
-# Genericization Baseline
+# Genericization boundary and current evidence
 
-This baseline records the review of the current workspace. Historical application-specific reports and parameter registers remain evidence only; they are not runtime configuration.
+The reusable engine's supported security model is SQL Server Database Engine metadata. Instances, databases, identity mappings, exclusions and operator external-ownership decisions are inputs, not application heuristics. There is no application adapter in the current project layout.
 
-## Findings Fixed
+The profile-driven wrapper supports connection-free `-ValidateOnly` and delegates to the canonical engine. The BAT launcher prompts for a profile and Plan/Apply mode, without historical server/database defaults. The wrapper uses `try/finally` to delete its own mapping files and restore an inherited environment variable. `config/local/` and `Results/` are ignored by Git.
 
-| Area | Finding | Fix | Verification |
-|---|---|---|---|
-| Launcher | Interactive BAT supplied historical instances, database counts, and application approvals | Replaced with a profile-driven thin launcher | Static launcher contract test |
-| Generic entry point | Passed unsupported legacy parameters and had no connection-free validation path | Added `-ValidateOnly`, removed unsupported arguments, and passed profile exclusions | Seven profile dry runs |
-| Config module | Failed on Windows PowerShell 5.1, mishandled false defaults, and did not reject unknown keys | Removed unsupported JSON depth usage, used safe PSObject access, and added recursive schema key checks | PowerShell 5.1 validation |
-| Discovery profile | Used identical source and target values while the migration engine rejects same endpoints | Marked the profile `discoveryOnly`; same-instance validation is allowed only for that mode | Discovery dry run |
-| Remediation | Contained application-specific classifiers, names, and worklists | Replaced with generic external-ownership terminology; no adapter or heuristic is loaded | Remediation AST and contract tests |
-| Output safety | Local profile and result locations were not explicitly excluded | Added `.gitignore` entries for local profiles, inventories, credentials, and logs | Required-file check |
+## Remaining qualification
 
-## Remaining Historical Evidence
+Generic design does not mean all configuration-schema options are implemented in the canonical engine. The SQL connection path currently uses Windows Integrated authentication and fixed connection options; review options such as SQL authentication/pooling before use. The engine's SQL application-name string still includes an organization-specific label and should be changed in a separately tested code edit. It does not introduce an application adapter, but it is not fully neutral branding.
 
-Historical reports, the parameter decision register, and prior test-output captures may contain old environment identifiers. They are not imported by the generic runtime and must not be used as defaults, approval, or proof of current state. A disposable SQL Server lab is still required for live APPLY verification.
+The current engine inventories destination ONLINE user databases beyond the named source list and derives a template even if the profile disables template policy. This is a real behavioral gap requiring a code fix, contract tests and scope review; documentation must not conceal it. Historical migration reports were excluded from the current repository tree in the documentation cleanup, but previous Git commits remain reachable until an independently reviewed history cleanup is performed. Do not regard current-tree deletion as removal from Git history or approval to store former employer data externally.
 
-## Current Generic Boundary
-
-The active runtime uses SQL Server metadata, validated profile data, explicit mappings, and operator-supplied external-ownership decisions only. It does not create, load, infer, or require an application adapter.
+No live APPLY integration, full SQL security equivalence or five-minute PLAN benchmark is established by this document. See [known gaps](KNOWN-GAPS.md) and [performance runbook](PERFORMANCE-RUNBOOK.md).

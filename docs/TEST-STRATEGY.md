@@ -1,38 +1,26 @@
-# Complete destination coverage
+# Generic test strategy and evidence
 
-Static contracts cover the 15 exact matches, 15 additional destinations, common-template derivation, missing target securables, SID conflicts, repeated APPLY safeguards, partial execution and full 30-database manifest fields. Disposable SQL integration tests must additionally provision 15 source and 30 destination databases, verify exact-match and common-template planning, rerun APPLY to confirm idempotency, simulate conflicts and drift, and assert final reconciliation across all 30 databases. No live SQL validation is claimed in this repository run.
+## Offline tests currently available
 
-# Test strategy and validation status
+The repository contains Python static/contract tests under `tests/test_*.py`, a Windows PowerShell parser smoke test at `tests/SmokeTest.ps1`, and helper-specific tests for PLAN action comparison and session analysis. These check selected source-text invariants and offline behavior, **not** successful live SQL migration. No test pass is claimed by this document unless a dated execution log and commit SHA are supplied.
 
-## Current validation in the repository
+```powershell
+python -m unittest discover -s tests -p 'test_*.py'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\SmokeTest.ps1
+```
 
-- [tests/SmokeTest.ps1](../tests/SmokeTest.ps1): verifies the PowerShell script parses successfully with the Windows AST parser.
-- [tests/test_static.py](../tests/test_static.py): tests lexical balance, artifact existence, contract expectations, and a few guardrail checks.
-- [tests/test_v2_contract.py](../tests/test_v2_contract.py): validates the pinned-inventory contract and safety flags.
+Run PowerShell checks on a compatible Windows host. Record revision, platform, command, return code and failures.
 
-## What these tests do not cover
+## Required behavioral fixtures
 
-- connectivity to SQL Server
-- real identity mapping and SID conflict behavior
-- database role creation and permission execution
-- cross-version hash compatibility
-- source drift simulation
-- production-grade migration compliance
+Use synthetic metadata covering missing vs present-with-zero-permissions destination objects, column permissions, DENY, GRANT WITH GRANT OPTION, owners and role ownership, login/user SID conflicts, source/target name mappings, excluded and additional destination databases, duplicate/case-sensitive identities, disconnected/insufficient-metadata states and target-only preservation. Compare normalized action identity, kind, status, reason, SQL semantics, dependencies, inventory scope/completeness and manifest evidence. Equal action counts or identical CSV exports alone are insufficient.
 
-## Recommended next test layer
+## Performance checks
 
-1. disposable SQL Server integration tests in a lab environment
-2. source drift and tampering tests against the inventory
-3. multi-stage `APPLY` dry-run execution with no DDL on a restored target
-4. failure-continuation tests to confirm independent operations do not poison the rest of the migration
-5. final reconciliation verification after a staged migration
+Capture exclusive nonoverlapping phases, wall-clock time, SQL reads/load, memory, artifact sizes and deterministic output on the same baseline fixtures. Do algorithmic work before parallelism. Run an authorized read-only live PLAN only after offline equivalence tests pass. A runtime goal is not a measured result.
 
-## Acceptance criteria before production use
+## Disposable SQL lab before APPLY claims
 
-- all static tests pass
-- AST parse tests pass on Windows PowerShell 5.1
-- disposable integration checklist passes for PLAN and APPLY
-- identity mapping, SID conflict, and permission guardrails are verified against real servers
-- a fully reviewed, approved plan is used for each APPLY run
+Provision deliberately small synthetic source/target SQL instances and accounts. Test PLAN under read-only security permissions, source drift, manifest/plan tampering, exact instance/scope/approval gates, SID conflicts, stage isolation, SQL write interception/audit, partial failure and fresh post-stage reconciliation. Never use a real target as a disposable lab or interpret a no-op APPLY preview as proof that actual DDL/DCL works. Validate supported SQL Server versions and security semantics explicitly.
 
-The repository currently supports this as a candidate implementation, not a production-certified migration engine.
+The engine's standalone Verify mode is absent; remediation Verify checks report generation only, and remediation Apply throws intentionally. See [known gaps](KNOWN-GAPS.md) and [integration checklist](../tests/Integration-Checklist.md).

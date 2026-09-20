@@ -1,28 +1,26 @@
-# Confirmed gaps and unresolved requirements
+# Known gaps and verification limits
 
-## Implementation evidence vs. intended design
+This file records implementation observations in the current repository. A feature's appearance in the schema, README or tests is **not** proof that its full SQL execution path is implemented or integration-tested.
 
-The repository shows a conservative, inventory-pinned implementation candidate, but it does not yet prove production-grade equivalence to the design goals in the onboarding brief.
+## Confirmed current-code discrepancies
 
-## Confirmed gaps
+1. `Invoke-SqlSecurityMigration.ps1` has only Plan/Apply modes; its final replan after APPLY is not an independent Verify mode. Remediation `Verify` confirms report generation; remediation Apply intentionally throws before SQL execution.
+2. `Build-Plan` derives common-template evidence unconditionally and proposes it for additional destination databases in PLAN even when profile `templatePolicy.enabled` is false; the manifest also unconditionally sets `RequireTemplateApproval=true`. Fix and version the contract with regression tests before describing the policy switch as effective.
+3. `Verify-Preflight` considers all ONLINE destination user databases minus exclusions independently of the selected source list. Additional databases may become template candidates. The excluded-database path in `Build-Plan` may still collect metadata; exclusion must not be marketed as a no-read guarantee.
+4. The profile schema includes SQL authentication, pooling and connection settings, but the canonical `Query-Sql` path currently uses Windows Integrated authentication, `Encrypt=True`, and `Pooling=false`. Validate or implement configuration propagation rather than describing all schema fields as active.
+5. The SQL connection application-name string in the canonical engine and connection-test helper contains organization-specific branding. This is a cosmetic genericization issue, not evidence of an application adapter; change it in a tested code update.
+6. The canonical engine's inventory, role-coverage, serialization and common-template paths remain performance hot spots. The five-minute PLAN goal has not been benchmark-verified.
 
-- No end-to-end lab validation against a disposable SQL Server pair is available in this environment.
-- The project uses static tests only; no live Windows PowerShell/SQL Server execution has been proved here.
-- `TrustServerCertificate` is explicitly allowed for encrypted transport, but it disables certificate validation; the README calls this out as a deployment risk.
-- The project still flags SharePoint-managed provisioning as outside the scope of SQL-only DDL, which means some application-specific roles remain manual-farm steps.
-- Role and permission logic is carefully guarded, but the repository does not implement proofs of full security equivalence or complete cross-version compatibility.
+## Outstanding safety and testing evidence
 
-## Risk areas
+- No complete disposable-lab PLAN/APPLY integration and effective permission reconciliation evidence has been established here; static or AST tests are insufficient.
+- Identity SID conflicts, composite-key Windows SID translation, unsupported securables/grantor semantics, collation behavior and server-role permissions require additional targeted evidence.
+- Effective AD group nesting, application/external provisioning, SQL Agent credentials and certificate/key material are outside this SQL-metadata equivalence guarantee.
+- No atomic cross-database rollback. Require a separate approved recovery plan before any real APPLY.
+- `TrustServerCertificate` bypasses certificate identity verification even when the connection is encrypted.
+- Manifest/file SHA256 does not protect against an attacker who can rewrite both artifacts and manifest. Restrict report access and maintain independent approvals.
+- Historical operational documentation removed from the current tree can remain in prior Git commits. A separately approved history-cleanup/migration procedure is needed if that content was not authorized for storage.
 
-- effective AD group membership is not reconstructed
-- application-managed security is not recreated by plain SQL DDL
-- unsupported securable classes and grantor identity are intentionally not guaranteed
-- no cross-database rollback is available
+## Evidence required before an operational release
 
-## Highest-priority missing evidence
-
-1. disposable database integration tests for PLAN and APPLY
-2. source drift simulation against inventoried metadata
-3. identity conflict tests covering SID mismatches and mapped login names
-4. role ownership and schema dependency validation
-5. final verification against a controlled destination state
+Use versioned semantic regression fixtures, full static/AST checks, exclusive timing, approved read-only PLAN comparison, representative disposable-lab APPLY, metadata visibility and identity-conflict tests, manifest tampering/drift tests, and independently reviewed recovery/approval procedures. Report precise results, not an overall readiness claim based on passing static tests.

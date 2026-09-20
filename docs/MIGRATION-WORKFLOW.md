@@ -1,45 +1,25 @@
-# Approved 15-to-30 workflow
+# Generic migration workflow
 
-PLAN is read-only and must inventory all 15 source databases plus all 30 destination databases. It identifies 15 exact name matches and 15 additional destination databases. Matching databases use their corresponding source inventory. Additional databases use only the derived common template, which is built from evidence present across the complete source inventory.
+## 1. Review endpoint and database scope
 
-Before APPLY, review `CommonTemplate.json` and approve it with `-ApproveCommonTemplate`. Source-specific permissions, application-managed securables, unsupported object references and conflicting identities remain blocked, deferred or manual review. APPLY must consume the hashed manifest and destination inventory artifacts, execute in dependency order, continue independent eligible operations, and reconcile every destination database.
+Use `tools/Get-SqlDatabaseCandidates.ps1` or independently approved read-only SQL to inspect candidate databases on **both** instances. Review exact matches, state, source/destination visibility, every destination ONLINE user database, explicit exclusions and any separately approved mappings. A `LIKE` filter from discovery does not by itself restrict the engine's destination inventory; the engine currently classifies other nonexcluded destination databases as additional candidates. The selected source DBs must be ONLINE with valid destination matches or explicit mappings. Do not infer mappings or approve a common template merely because a database exists.
 
-# Migration workflow
+## 2. Validate configuration offline
 
-## PLAN
+Copy a sanitized profile into ignored `config/local/`, enter only approved values, and run `Invoke-SqlSecurityMigration-Generic.ps1 -ProfilePath <local-profile> -ValidateOnly`. Inspect resolved scope, excludes, certificate choice and actual engine capabilities. The current engine derives common-template evidence even if `templatePolicy.enabled` is false. Explicitly account for nonmatching destination databases before execution.
 
-PLAN is read-only and is the canonical inventory build step. It executes the logic in `Build-Plan`, reads both source and target server metadata, and writes `Results/<session>/SourceInventory` plus report files.
+## 3. PLAN — SQL read-only
 
-The process includes:
+Run the generic entry point with `-Mode Plan` under separately approved read-only scope. The engine collects source/target SQL security metadata, generates action/exception/root-cause reports and role coverage, persists typed source XML, destination snapshots, a manifest, and summary under a restricted local session directory. PLAN does not run target security DDL; local files contain sensitive corporate metadata. Preserve the whole session, including the parent `Plan01_Plan.csv` and `SourceInventory` directory. Check completion and completeness, not just the process exit code.
 
-- server inventory and selected database inventory
-- login comparison, mapping, and conflict detection
-- database principal and role inventory
-- schema and permission comparison
-- root-cause grouping and exception reporting
+## 4. Independent review
 
-The script writes plan artifacts such as `*_Plan.csv`, `*_Exceptions.csv`, `*_RootCauses.csv`, `*_RoleCoverage.csv`, `*_RoleSummary.csv`, `*_UserMappings.csv`, and `*_Logins.csv` plus a session log and summary.
+Review selected/mapped/excluded/unmatched databases, login and user SID/type conflicts, ownership, explicit GRANT/DENY/GRANT OPTION, roles and memberships, unsupported securables, planned SQL, template evidence, dependencies and target-only metadata. A derived template is a proposal, never an authorization or an assumption of universal object existence. Fix scope and evidence defects with a fresh PLAN rather than editing the pinned artifacts.
 
-## APPLY
+## 5. APPLY — separately authorized SQL writes
 
-APPLY requires an approved source inventory and validates:
+Only an operator with explicit authority over the precise destination, database scope and stage may initiate APPLY. The canonical engine reads the reviewed pinned inventory, verifies hashes/fingerprints and source drift, replans against fresh target metadata and requires interactive `REVIEWED` plus exact target confirmation and applicable switches. Staged execution can partially succeed; it is not an atomic transaction across databases. Do not enable `All`, privileged switches, template approval or `TrustServerCertificate` automatically. Never treat this documentation or a PLAN request as APPLY authorization.
 
-- inventory integrity (`Manifest.json`, SHA256 file hashes, dataset fingerprints)
-- source instance identity
-- target identity and database mapping
-- source drift before execution
-- explicit approvals for privileged or permission-changing stages
+## 6. Reconciliation and external acceptance
 
-The script blocks a mismatch between a requested target or database scope and the approved PLAN. It also re-runs the plan before each phase and does not silently replay a stale SQL script.
-
-## VERIFY
-
-After execution, `Finalize-Session` compares the fresh target state with the pinned source inventory and records:
-
-- executed stages
-- failed DDL
-- unresolved or blocked items
-- target-only differences
-- final status in `Summary.json`
-
-A zero exit code means no detected source gaps in the supported scope, not total equivalence of all effective access. This is a documented caveat in the script and README.
+`Finalize-Session` performs a supported-scope post-APPLY source-drift check and fresh target comparison, recording executed/failed and unresolved items. **The canonical engine has no standalone Verify mode.** The separate remediation Verify checks report production only and its Apply is intentionally unimplemented. Confirm effective access and external/application requirements independently in a disposable lab and under approved operations; a zero exit status is not complete security equivalence.

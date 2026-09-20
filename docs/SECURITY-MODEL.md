@@ -1,33 +1,21 @@
-# Security model and safeguards
+# Security model and authority boundaries
 
-## Security boundaries
+## SQL operations
 
-This project operates at the SQL Server instance level and therefore handles privileged metadata and potentially sensitive identity information. The core safeguards are documented in the PowerShell entry logic and in the README.
+PLAN reads SQL metadata, creates local files and does not execute security DDL. APPLY can change target SQL security through `Apply-Sql` and `Execute-Phase`; it requires a separately approved destination, reviewed pinned PLAN inventory, required approval switches and stage selection, interactive plan review and exact target confirmation. The BAT launcher only asks for a JSON profile and Plan/Apply mode; it does **not** independently perform AST checks or obtain individual privilege approvals. Use the actual engine safeguards and external change control, not a launcher prompt, as authority boundaries.
 
-- Password hashes are never written to the `SourceInventory` plan files.
-- `Write-ReadableTable` strips the `PasswordHash` column before exporting CSVs.
-- A `Manifest.json` with SHA256 values and dataset fingerprints controls inventory integrity.
-- The `RUN` script preflights script parsing and prompts for review before any stage executes.
+## Evidence integrity
 
-## Identity and permission controls
+Source snapshots include typed XML, a manifest with file SHA256 and DataSet fingerprints, destination inventory hashes and a pinned PLAN report hash. `Load-ApprovedInventory` validates those artifacts; `Verify-SourceUnchanged` checks for source metadata drift. SHA256 detects changes relative to a trusted manifest, but the manifest is unsigned: it does not prove who approved the plan or prevent simultaneous malicious replacement of evidence and manifest.
 
-The script blocks unsafe changes by default:
+The engine's source snapshot and readable exports are intended to exclude SQL password hashes. SQL metadata reports still include logins, roles, SIDs, permissions, owners and potentially sensitive database names. Restrict local output ACLs and do not upload operational session artifacts or real configuration to personal or unapproved GitHub storage.
 
-- login type mismatch
-- SID conflict
-- target database user SID mismatch
-- schema/role ownership mismatch
-- missing target principal in permission grants
-- privileged roles and permissions without explicit approval flags
-- target-only object removal is never automatic
+## Identity and scope protections
 
-## Production safety
+Source/target instance identity, selected DB presence, SID/type conflicts, ownership, privileged roles/permissions and target-only records are part of planning safeguards. Unsupported operations and dependencies must be reviewed rather than bypassed. Target-only security is never automatically deleted. Metadata visibility and collation limitations can invalidate completeness and must fail closed for APPLY.
 
-- APPLY uses a saved plan, not a blanket live-source replay.
-- `Verify-SourceUnchanged` prevents drift from the approved source inventory.
-- `Confirm-Apply` requires an exact target instance name before a phase executes.
-- Powershell script parsing and Windows file unblock checks happen before the actual migration logic runs.
+Current scope caveat: the canonical engine may classify additional nonexcluded ONLINE destination databases as template candidates even when the profile's template switch is disabled. Review the full destination list and explicit exclusions before PLAN. An exclusion may still be inventoried by current code; do not claim it prevents all metadata reads.
 
-## Residual risk
+## Residual risks
 
-This is not a cryptographically signed artifact. The project relies on access control, restricted storage, and review of the approved inventory folder. It does not guarantee complete equivalence for effective AD group membership, application-managed security, or unsupported securables.
+`TrustServerCertificate` encrypts transport without validating the certificate identity. There is no signed approval manifest, full effective AD/application access equivalence, or cross-database rollback guarantee. Integration testing is incomplete; authorization for live APPLY must not be inferred from repository contents. Historical confidential material may remain in Git history after current-tree cleanup.
