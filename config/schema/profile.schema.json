@@ -159,11 +159,13 @@
             "sourceDatabases": {
               "type": "array",
               "items": { "type": "string" },
+              "default": [],
               "description": "Source databases to include in common template derivation"
             },
             "targetDatabases": {
               "type": "array",
               "items": { "type": "string" },
+              "default": [],
               "description": "Additional target databases receiving the common template"
             },
             "evidenceThreshold": {

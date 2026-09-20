@@ -4,7 +4,7 @@
 
 This repository contains an offline PLAN action comparator (`tools/Compare_PlanActions.py`), a session timeline analyzer (`tools/Analyze_PlanSession.py`), and a read-only two-instance scope discovery helper (`tools/Get-SqlDatabaseCandidates.ps1`). The profile wrapper also restores inherited environment state and deletes only its own temporary mapping files on normal and exceptional exits.
 
-**The migration engine's expensive inventory, planner, template and serialization algorithms have NOT yet been optimized or benchmarked in the current revision. No runtime improvement has been measured or claimed.** This document is an implementation handoff for that remaining work, not a performance-completion certificate.
+The engine now has a measured, behavior-preserving first optimization slice: common-template derivation and application are explicit profile opt-in, and role coverage plus membership dependency checks use per-database indexes instead of repeated full scans. The expensive catalog collection and serialization paths remain unoptimized and no five-minute runtime is claimed. This document remains an implementation handoff for the remaining work, not a performance-completion certificate.
 
 ## Baseline and offline regression
 
@@ -25,7 +25,7 @@ The timing analyzer reports the union of recorded POSTPLAN phase intervals separ
 1. Instrument exclusive SQL connect/query/fetch, normalization, planner, role coverage, source/destination serialization, common-template, fingerprint/file hash, manifest and reporting durations. Reconcile to total wall time.
 2. Replace repeated per-permission/per-role linear PowerShell scans with per-database collation-appropriate indexes and cached canonical keys; keep action identity/status/order unchanged.
 3. Trim full object/column inventory only after proving destination existence for permission-referenced objects that have **zero** explicit target permissions. Preserve ownership, column/type, completeness and APPLY drift evidence. Version and validate decision-complete persistence before changing the contract.
-4. Skip common-template derivation unless explicitly opted in; do not plan a template for additional databases solely because MODE=PLAN. Intersect indexed security records only when enabled.
+4. Skip common-template derivation unless explicitly opted in; do not plan a template for additional databases solely because MODE=PLAN. The generic wrapper passes `scope.templatePolicy.enabled`, optional `sourceDatabases`, and optional `targetDatabases` to the engine. Intersect indexed security records only when enabled.
 5. Benchmark pooling and optional bounded parallel inventory **after** sequential optimizations. Keep connections isolated; perform deterministic merge, planner and manifest publication on the main thread.
 6. Independently repair typed identity lookup caching in remediation; do not turn a performance refactor into silent identity-reconciliation behavior changes.
 7. Run the existing full test suite and PowerShell 5.1 AST/parser checks, targeted behavioral tests, baseline comparison and one fresh authorized read-only PLAN. Report actual before/after runtime, memory, SQL work and differences.

@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 GENERIC = (ROOT / 'Invoke-SqlSecurityMigration-Generic.ps1').read_text(encoding='utf-8-sig')
 CONFIG = (ROOT / 'modules' / 'Config.psm1').read_text(encoding='utf-8-sig')
 BAT = (ROOT / 'Run-SqlSecurityMigration.bat').read_text(encoding='utf-8-sig')
+ENGINE = (ROOT / 'Invoke-SqlSecurityMigration.ps1').read_text(encoding='utf-8-sig')
 
 
 class GenericContractTests(unittest.TestCase):
@@ -18,6 +19,14 @@ class GenericContractTests(unittest.TestCase):
         self.assertIn('Windows PowerShell 5.1 has no -Depth parameter', CONFIG)
         self.assertIn('Unknown configuration key:', CONFIG)
         self.assertIn("$prop.PSObject.Properties['default']", CONFIG)
+
+    def test_template_policy_reaches_engine_and_is_opt_in(self):
+        self.assertIn('EnableCommonTemplate = [bool]$config.scope.templatePolicy.enabled', GENERIC)
+        self.assertIn('TemplateSourceDatabase = @($config.scope.templatePolicy.sourceDatabases)', GENERIC)
+        self.assertIn('TemplateTargetDatabase = @($config.scope.templatePolicy.targetDatabases)', GENERIC)
+        self.assertIn('$script:TemplateEnabled=[bool]$EnableCommonTemplate', ENGINE)
+        self.assertIn("if($script:TemplateEnabled){", ENGINE)
+        self.assertIn("PostPlan-Log 'SKIP: CommonTemplate disabled by profile policy'", ENGINE)
 
     def test_sanitized_examples_are_json_and_no_application_adapter(self):
         examples = sorted((ROOT / 'config' / 'examples').glob('*.json'))

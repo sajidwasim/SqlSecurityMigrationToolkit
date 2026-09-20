@@ -30,6 +30,9 @@ param(
   [switch]$AllowServerSecurity,
   [switch]$AllowIdentityMapping,
   [switch]$IncludeAllServerLogins,
+  [switch]$EnableCommonTemplate,
+  [string[]]$TemplateSourceDatabase,
+  [string[]]$TemplateTargetDatabase,
   [switch]$ApproveCommonTemplate,
   [ValidateRange(1,120)][int]$ConnectTimeoutSeconds=15,
   [ValidateRange(1,1800)][int]$CommandTimeoutSeconds=120
@@ -90,6 +93,9 @@ $script:ReviewRequiredDestinationDatabases=@()
 $script:CommonTemplate=$null
 $script:TemplateEvidence=@()
 $script:RelevantLogins=@{}
+$script:TemplateEnabled=[bool]$EnableCommonTemplate
+$script:TemplateSourceDatabases=@($TemplateSourceDatabase | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object {$_.Trim()})
+$script:TemplateTargetDatabases=@($TemplateTargetDatabase | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object {$_.Trim()})
 
 function Scrub([string]$message){return ($message -replace '(?i)0x[0-9a-f]{64,}','[REDACTED_BINARY]')}
 function Log([string]$level,[string]$message) {
@@ -440,7 +446,8 @@ function Save-InventoryManifest {
     ExplicitlyExcludedDatabases=@($script:ExplicitlyExcludedDatabases);ReviewRequiredDestinationDatabases=@($script:ReviewRequiredDestinationDatabases);UnclassifiedDatabases=@($script:UnclassifiedDatabases);
     ExpectedSourceDatabaseCount=$script:SelectedDbs.Count;ExpectedDestinationDatabaseCount=$script:DestinationDbs.Count;ExpectedAdditionalDestinationDatabaseCount=$script:AdditionalDestinationDbs.Count;
     CompleteDestinationInventory=($script:DestinationDatasets.Count -eq $script:DestinationDbs.Count);ScopeResolvedForApply=($script:UnclassifiedDatabases.Count -eq 0);FullDestinationInventory=$true;MatchingDatabases=@($script:MatchingDbs);AdditionalDestinationDatabases=@($script:AdditionalDestinationDbs);
-    DestinationDatabases=@($destinationEntries.ToArray());CommonTemplate=$true;RequireTemplateApproval=$true;
+    DestinationDatabases=@($destinationEntries.ToArray());CommonTemplate=([bool]$script:TemplateEnabled);RequireTemplateApproval=([bool]$script:TemplateEnabled);
+    TemplateSourceDatabases=@($script:TemplateSourceDatabases);TemplateTargetDatabases=@($script:TemplateTargetDatabases);
     TemplateEvidenceFile='CommonTemplate.json';TemplateEvidenceHash=File-SHA256 $templateFile;
     Databases=@($entries.ToArray());
     Limitations='SHA256 detects accidental changes, not a malicious rewrite of both manifest and inventory; no password hashes stored; review every stage and validate external application provisioning where applicable.'
@@ -1190,6 +1197,15 @@ function Plan-Database([string]$db,$source,$target) {
     $p=Permission-Object $r $db
     if(-not $sourcePermissionKeys.ContainsKey($p.Key)) {Add-Action $db 'Target-only database permission' $p.Key 'Review' 'Target only' 'No permission removed automatically.' '' '' $p.Grantee}
   }
+  # Build the dependency gate once. The previous implementation rescanned the
+  # complete action list for every missing role membership.
+  $incompleteRolePermissions=@{}
+  foreach($action in @($script:Actions|Where-Object {
+    $_.Database -eq $db -and $_.Kind -in @('Database permission','Target-only database permission') -and
+    $_.Status -in @('Blocked','Deferred','Manual review','Failed','Target only') -and $_.Principal
+  })) {
+    $incompleteRolePermissions[(Key ([string]$action.Principal) '')]=$true
+  }
   $srcMembersByRole=@{};foreach($m in $source.Memberships){$srcMembersByRole[(Key (Val $m.RoleName) (Val $m.MemberName))]=$true}
   foreach($m in $source.Memberships){
     $role=Val $m.RoleName;$member=Val $m.MemberName
@@ -1213,10 +1229,7 @@ function Plan-Database([string]$db,$source,$target) {
       Add-Action $db 'Database role membership' ($role+' / '+$member) 'Memberships' 'Blocked' 'Privileged role requires -AllowPrivilegedRoles.' '' '' $member $role;continue
     }
     # Never grant membership of a role whose declared permissions failed to replicate.
-    $incomplete=@($script:Actions | Where-Object {
-      $_.Database -eq $db -and $_.Kind -in @('Database permission','Target-only database permission') -and $_.Principal -eq $role -and $_.Status -in @('Blocked','Deferred','Manual review','Failed','Target only')
-    })
-    if($incomplete.Count) {Add-Action $db 'Database role membership' ($role+' / '+$member) 'Memberships' 'Deferred' 'Role permission differences (including target-only permissions) unresolved; membership withheld.' '' '' $member $role;continue}
+    if($incompleteRolePermissions.ContainsKey((Key $role ''))) {Add-Action $db 'Database role membership' ($role+' / '+$member) 'Memberships' 'Deferred' 'Role permission differences (including target-only permissions) unresolved; membership withheld.' '' '' $member $role;continue}
     $extraRoleParents=@($target.Memberships | Where-Object {$_.MemberName -eq $role -and -not $srcMembersByRole.ContainsKey((Key (Val $_.RoleName) (Val $_.MemberName)))})
     if($extraRoleParents.Count) {Add-Action $db 'Database role membership' ($role+' / '+$member) 'Memberships' 'Blocked' 'Target role inherits extra role memberships not present in source; privileges may differ.' '' '' $member $role;continue}
     $sql='ALTER ROLE '+(Qi $role)+' ADD MEMBER '+(Qi $member)+';'
@@ -1268,15 +1281,24 @@ function Build-Plan([bool]$includeHashes=$false) {
         $users.Add([pscustomobject]@{SourceDatabase=$db;Database=$targetDb;SourceUser=(Val $sp.Name);SourceLogin=(Val $sp.LoginName);TargetLogin=$(TargetLoginName (Val $sp.LoginName));SourceSid=(Hex $sp.Sid);TargetUserPresent=($null -ne $target);TargetSid=$(if($null -ne $target){Hex $target.Sid}else{''});SourceSchema=(Val $sp.DefaultSchema);TargetSchema=$(if($null -ne $target){Val $target.DefaultSchema}else{''})})|Out-Null
       }
     }
+    $targetRoleMap=ByName @($t.Principals|Where-Object {$_.Type -eq 'R'})
+    $sourceMembershipsByRole=@{};$targetMembershipsByRole=@{}
+    foreach($membership in $s.Memberships){$key=[string]$membership.RoleName;if(-not $sourceMembershipsByRole.ContainsKey($key)){$sourceMembershipsByRole[$key]=New-Object System.Collections.Generic.List[object]};$sourceMembershipsByRole[$key].Add($membership)|Out-Null}
+    foreach($membership in $t.Memberships){$key=[string]$membership.RoleName;if(-not $targetMembershipsByRole.ContainsKey($key)){$targetMembershipsByRole[$key]=New-Object System.Collections.Generic.List[object]};$targetMembershipsByRole[$key].Add($membership)|Out-Null}
+    $sourcePermissionsByRole=@{};$targetPermissionsByRole=@{}
+    foreach($permission in $s.Permissions){$key=[string]$permission.Grantee;if(-not $sourcePermissionsByRole.ContainsKey($key)){$sourcePermissionsByRole[$key]=New-Object System.Collections.Generic.List[object]};$sourcePermissionsByRole[$key].Add($permission)|Out-Null}
+    foreach($permission in $t.Permissions){$key=[string]$permission.Grantee;if(-not $targetPermissionsByRole.ContainsKey($key)){$targetPermissionsByRole[$key]=New-Object System.Collections.Generic.List[object]};$targetPermissionsByRole[$key].Add($permission)|Out-Null}
     foreach($r in @($s.Principals|Where-Object {$_.Type -eq 'R'})) {
       $name=Val $r.Name
-      $tRole=Lookup (ByName @($t.Principals|Where-Object {$_.Type -eq 'R'})) $name
-      $sourceMemberCount=@($s.Memberships|Where-Object {$_.RoleName -eq $name}).Count
-      $targetMemberCount=@($t.Memberships|Where-Object {$_.RoleName -eq $name}).Count
-      $sourceUserCount=@($s.Memberships|Where-Object {$_.RoleName -eq $name -and $_.MemberType -ne 'R'}).Count
-      $targetUserCount=@($t.Memberships|Where-Object {$_.RoleName -eq $name -and $_.MemberType -ne 'R'}).Count
-      $sourcePermCount=@($s.Permissions|Where-Object {$_.Grantee -eq $name}).Count
-      $targetPermCount=@($t.Permissions|Where-Object {$_.Grantee -eq $name}).Count
+      $tRole=Lookup $targetRoleMap $name
+      $sourceRoleMemberships=@();if($sourceMembershipsByRole.ContainsKey($name)){$sourceRoleMemberships=@($sourceMembershipsByRole[$name].ToArray())}
+      $targetRoleMemberships=@();if($targetMembershipsByRole.ContainsKey($name)){$targetRoleMemberships=@($targetMembershipsByRole[$name].ToArray())}
+      $sourceRolePermissions=@();if($sourcePermissionsByRole.ContainsKey($name)){$sourceRolePermissions=@($sourcePermissionsByRole[$name].ToArray())}
+      $targetRolePermissions=@();if($targetPermissionsByRole.ContainsKey($name)){$targetRolePermissions=@($targetPermissionsByRole[$name].ToArray())}
+      $sourceMemberCount=$sourceRoleMemberships.Count;$targetMemberCount=$targetRoleMemberships.Count
+      $sourceUserCount=@($sourceRoleMemberships|Where-Object {$_.MemberType -ne 'R'}).Count
+      $targetUserCount=@($targetRoleMemberships|Where-Object {$_.MemberType -ne 'R'}).Count
+      $sourcePermCount=$sourceRolePermissions.Count;$targetPermCount=$targetRolePermissions.Count
       $roles.Add([pscustomobject]@{SourceDatabase=$db;Database=$targetDb;Role=$name;Fixed=[bool]$r.FixedRole;ApplicationManaged=$false;SourceOwner=(Val $r.OwnerName);TargetOwner=$(if($null -ne $tRole){Val $tRole.OwnerName}else{''});TargetExists=($null -ne $tRole);SourceMembers=$sourceMemberCount;TargetMembers=$targetMemberCount;SourceUsers=$sourceUserCount;TargetUsers=$targetUserCount;SourceNestedRoles=($sourceMemberCount-$sourceUserCount);TargetNestedRoles=($targetMemberCount-$targetUserCount);SourceExplicitPermissions=$sourcePermCount;TargetExplicitPermissions=$targetPermCount})|Out-Null
     }
     $sourceDbInfo=@($script:SourceMeta.Databases|Where-Object {$_.name -eq $db})[0]
@@ -1286,25 +1308,34 @@ function Build-Plan([bool]$includeHashes=$false) {
     }
     Plan-Database $targetDb $s $t
   }
-  $missingSourceInventory=@($script:SelectedDbs|Where-Object {-not $script:SnapshotDatasets.ContainsKey($_)})
-  if($missingSourceInventory.Count){
-    Add-Action '' 'Source inventory' ($missingSourceInventory -join ', ') 'Preflight' 'Failed' 'Complete source inventory is required before deriving the common template.'
-    throw ('Incomplete source inventory; cannot derive common template. Missing: '+($missingSourceInventory -join ', '))
-  }
-  PostPlan-Log 'START: LoadSourceInventory'
-  $sourceInventories=@($script:SelectedDbs|ForEach-Object {Database-FromDataset $script:SnapshotDatasets[$_]})
-  PostPlan-Log ('END: LoadSourceInventory SourceCount='+$sourceInventories.Count)
-  if($sourceInventories.Count -ne $script:SelectedDbs.Count){throw 'Complete source inventory required before deriving common template.'}
-  PostPlan-Log 'START: CommonTemplate'
-  $derived=Derive-CommonTemplate $sourceInventories
-  $script:CommonTemplate=$derived.Data
-  $script:TemplateEvidence=$derived.Evidence
-  PostPlan-Log ('END: CommonTemplate EvidenceCount='+$script:TemplateEvidence.Count)
+   if($script:TemplateEnabled){
+     $missingSourceInventory=@($script:SelectedDbs|Where-Object {-not $script:SnapshotDatasets.ContainsKey($_)})
+     if($missingSourceInventory.Count){
+       Add-Action '' 'Source inventory' ($missingSourceInventory -join ', ') 'Preflight' 'Failed' 'Complete source inventory is required before deriving the common template.'
+       throw ('Incomplete source inventory; cannot derive common template. Missing: '+($missingSourceInventory -join ', '))
+     }
+     PostPlan-Log 'START: LoadSourceInventory'
+     $templateSourceNames=if($script:TemplateSourceDatabases.Count){$script:TemplateSourceDatabases}else{@($script:SelectedDbs)}
+     foreach($templateSourceName in $templateSourceNames){if($script:SelectedDbs -notcontains $templateSourceName){throw ('Template source database is outside selected PLAN scope: '+$templateSourceName)}}
+     $sourceInventories=@($templateSourceNames|ForEach-Object {Database-FromDataset $script:SnapshotDatasets[$_]})
+     PostPlan-Log ('END: LoadSourceInventory SourceCount='+$sourceInventories.Count)
+     if($sourceInventories.Count -ne $templateSourceNames.Count){throw 'Complete source inventory required before deriving common template.'}
+      PostPlan-Log 'START: CommonTemplate'
+     $derived=Derive-CommonTemplate $sourceInventories
+     $script:CommonTemplate=$derived.Data
+     $script:TemplateEvidence=$derived.Evidence
+     PostPlan-Log ('END: CommonTemplate EvidenceCount='+$script:TemplateEvidence.Count)
+   } else {
+     $script:CommonTemplate=$null
+     $script:TemplateEvidence=@()
+     PostPlan-Log 'SKIP: CommonTemplate disabled by profile policy'
+   }
   foreach($destinationDb in $script:AdditionalDestinationDbs){
     try {
       $destinationInventory=Database-Inventory $destinationDb $false
       $script:DestinationDatasets[$destinationDb]=$destinationInventory
-      if($Mode -eq 'Plan' -or $ApproveCommonTemplate){ApplyCommonTemplate $destinationDb $destinationInventory}
+      $templateTargetAllowed=(-not $script:TemplateTargetDatabases.Count -or $script:TemplateTargetDatabases -contains $destinationDb)
+      if($script:TemplateEnabled -and $templateTargetAllowed -and ($Mode -eq 'Plan' -or $ApproveCommonTemplate)){ApplyCommonTemplate $destinationDb $destinationInventory}
     }
     catch {Add-Action $destinationDb 'Destination database inventory' $destinationDb 'Preflight' 'Failed' $_.Exception.Message;Log ERROR ('Inventory failed for additional destination '+$destinationDb+': '+$_.Exception.Message)}
   }
@@ -1318,7 +1349,7 @@ function Build-Plan([bool]$includeHashes=$false) {
       catch {Add-Action $excludedDb 'Explicitly excluded database' $excludedDb 'Preflight' 'Review' 'Excluded from migration scope; inventory collection failed.'}
     }
   }
-  if($Mode -eq 'Apply' -and $script:SnapshotManifest.RequireTemplateApproval -and -not $ApproveCommonTemplate){
+  if($Mode -eq 'Apply' -and $script:TemplateEnabled -and $script:SnapshotManifest.RequireTemplateApproval -and -not $ApproveCommonTemplate){
     Add-Action '' 'Common security template' 'All additional destination databases' 'Preflight' 'Blocked' 'Derived common template requires explicit -ApproveCommonTemplate.'
   }
   Plan-ServerSecurity $includeHashes

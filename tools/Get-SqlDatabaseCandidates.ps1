@@ -75,7 +75,7 @@ ORDER BY name;
             throw "Requested instance '$Instance' resolved to '$actualInstance'; review the endpoint before continuing."
         }
         if ([int]$metadata['IsSysadmin'] -ne 1) {
-            throw "Incomplete metadata risk on $Instance: execution account is not sysadmin."
+            throw "Incomplete metadata risk on ${Instance}: execution account is not sysadmin."
         }
         if ([string]$metadata['EncryptionOption'] -ine 'TRUE') {
             throw "Connection to $Instance did not confirm transport encryption."
