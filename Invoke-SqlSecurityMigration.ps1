@@ -93,6 +93,7 @@ $script:ReviewRequiredDestinationDatabases=@()
 $script:CommonTemplate=$null
 $script:TemplateEvidence=@()
 $script:RelevantLogins=@{}
+$script:SqlConnectionCount=0
 $script:TemplateEnabled=[bool]$EnableCommonTemplate
 $script:TemplateSourceDatabases=@($TemplateSourceDatabase | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object {$_.Trim()})
 $script:TemplateTargetDatabases=@($TemplateTargetDatabase | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object {$_.Trim()})
@@ -1267,8 +1268,10 @@ function Build-Plan([bool]$includeHashes=$false) {
     }
   }
   foreach($db in $script:SelectedDbs){
+    $dbPlanTimer=[Diagnostics.Stopwatch]::StartNew()
     try {$s=Database-Inventory $db $true;$targetDb=TargetDatabase $db;$t=Database-Inventory $targetDb $false}
     catch {
+      $dbPlanTimer.Stop();Log WARN ('PLAN_DATABASE FAILED Database='+$db+' ElapsedMs='+$dbPlanTimer.ElapsedMilliseconds)
       Add-Action $db 'Database inventory' $db 'Preflight' 'Failed' $_.Exception.Message
       Log ERROR ('Inventory failed for '+$db+': '+$_.Exception.Message)
       continue
@@ -1307,6 +1310,7 @@ function Build-Plan([bool]$includeHashes=$false) {
       Add-Action $targetDb 'Database owner SID' $targetDb 'Review' 'Manual review' 'Database owner SID differs. No automatic database-ownership changes.'
     }
     Plan-Database $targetDb $s $t
+    $dbPlanTimer.Stop();Log INFO ('PLAN_DATABASE COMPLETE Database='+$targetDb+' ElapsedMs='+$dbPlanTimer.ElapsedMilliseconds)
   }
    if($script:TemplateEnabled){
      $missingSourceInventory=@($script:SelectedDbs|Where-Object {-not $script:SnapshotDatasets.ContainsKey($_)})

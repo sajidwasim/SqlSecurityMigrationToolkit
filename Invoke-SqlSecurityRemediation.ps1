@@ -310,12 +310,19 @@ function New-IdentityInventory($Issues,$Logins,$UserMappings) {
     if(-not $usersByPrincipal.ContainsKey($name)){$usersByPrincipal[$name]=New-Object System.Collections.Generic.List[object]}
     $usersByPrincipal[$name].Add($mapping)|Out-Null
   }
+  $issuesByPrincipal=@{}
+  foreach($issue in @($Issues)){
+    $principal=[string]$issue.Principal
+    if(-not $principal){continue}
+    if(-not $issuesByPrincipal.ContainsKey($principal)){$issuesByPrincipal[$principal]=New-Object System.Collections.Generic.List[object]}
+    $issuesByPrincipal[$principal].Add($issue)|Out-Null
+  }
   $principals=@($Issues|Where-Object {$_.Principal}|ForEach-Object {[string]$_.Principal}|Sort-Object -Unique)
   $rows=New-Object System.Collections.Generic.List[object]
   foreach($principal in $principals){
     $login=$null
     if($loginByName.ContainsKey($principal)){$login=$loginByName[$principal]}
-    $dependent=@($Issues|Where-Object {$_.Principal -eq $principal})
+    $dependent=@();if($issuesByPrincipal.ContainsKey($principal)){$dependent=@($issuesByPrincipal[$principal].ToArray())}
     $userRows=@()
     if($usersByPrincipal.ContainsKey($principal)){$userRows=@($usersByPrincipal[$principal].ToArray())}
     $sourceSid='';$targetSid='';$sourceLogin='';$targetLogin='';$principalType=''
@@ -352,9 +359,16 @@ function New-IdentityInventory($Issues,$Logins,$UserMappings) {
 }
 
 function New-IdentityMappingDecisions($IdentityInventory,$Issues) {
+  $issuesByPrincipal=@{}
+  foreach($issue in @($Issues)){
+    $principal=[string]$issue.Principal
+    if(-not $principal){continue}
+    if(-not $issuesByPrincipal.ContainsKey($principal)){$issuesByPrincipal[$principal]=New-Object System.Collections.Generic.List[object]}
+    $issuesByPrincipal[$principal].Add($issue)|Out-Null
+  }
   $rows=New-Object System.Collections.Generic.List[object]
   foreach($identity in @($IdentityInventory)){
-    $related=@($Issues|Where-Object {$_.Principal -eq $identity.Account})
+    $related=@();if($issuesByPrincipal.ContainsKey([string]$identity.Account)){$related=@($issuesByPrincipal[[string]$identity.Account].ToArray())}
     $hasExternalOwner=@($related|Where-Object {$_.ApprovalStatus -eq 'ExternalProvisioningRequired'}).Count -gt 0
     $hasConflict=@($related|Where-Object {$_.ApprovalStatus -eq 'BlockedIdentityConflict' -or $_.OriginalReason -match 'SID.*differ|SID/type|SID conflict'}).Count -gt 0
     $decision='NoSqlMappingDecisionRequired'
