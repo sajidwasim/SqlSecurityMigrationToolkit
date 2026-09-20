@@ -8,7 +8,7 @@ encrypted connections, and the System.Data.SqlClient library. Returns structured
 and meaningful exit codes.
 
 .PARAMETER ServerInstance
-Target SQL Server instance name (e.g., SPSTSQL01).
+SQL Server instance name supplied by the caller.
 
 .PARAMETER Database
 Database to connect to for validation. Defaults to 'master'.
@@ -22,6 +22,13 @@ Connection timeout in seconds. Default 15.
 
 .PARAMETER CommandTimeoutSeconds
 Command timeout in seconds. Default 30.
+
+.PARAMETER ExpectedServerName
+Optional canonical SQL Server name returned by SERVERPROPERTY('ServerName').
+The connection fails closed if the endpoint resolves elsewhere.
+
+.PARAMETER ApplicationName
+Application name sent to SQL Server.
 #>
 [CmdletBinding()]
 param(
@@ -31,6 +38,10 @@ param(
 
     [Parameter(Position=1)]
     [string]$Database = 'master',
+
+    [string]$ExpectedServerName = '',
+
+    [string]$ApplicationName = 'SQL Security Migration Toolkit - Connectivity Test',
 
     [switch]$TrustServerCertificate,
 
@@ -79,6 +90,8 @@ function Test-SqlConnectionInternal {
     param(
         [string]$Server,
         [string]$Db,
+        [string]$ExpectedServer,
+        [string]$AppName,
         [bool]$TrustCert,
         [int]$ConnectTimeout,
         [int]$CommandTimeout
@@ -87,6 +100,8 @@ function Test-SqlConnectionInternal {
     $result = @{
         ServerInstance      = $Server
         Database            = $Db
+        ExpectedServerName  = $ExpectedServer
+        TrustServerCertificate = $TrustCert
         Success             = $false
         ErrorCategory       = $null
         ErrorMessage        = $null
@@ -115,7 +130,7 @@ function Test-SqlConnectionInternal {
         $builder['Integrated Security'] = $true
         $builder['Encrypt'] = $true
         $builder['TrustServerCertificate'] = $TrustCert
-        $builder['Application Name'] = 'Coop SQL Security Migration Toolkit - Connectivity Test'
+        $builder['Application Name'] = $AppName
         $builder['Connect Timeout'] = $ConnectTimeout
         $builder['Pooling'] = $false
 
@@ -141,6 +156,9 @@ function Test-SqlConnectionInternal {
             $result.SystemUser = $reader['SystemUser']
             $result.IsSysadmin = [bool]$reader['IsSysadmin']
             $result.OnlineUserDatabaseCount = [int]$reader['OnlineUserDatabaseCount']
+            if ($ExpectedServer -and $result.ServerName -ine $ExpectedServer) {
+                throw "Endpoint identity mismatch: requested server resolved to '$($result.ServerName)', expected '$ExpectedServer'."
+            }
             $result.Success = $true
         }
         $reader.Close()
@@ -204,6 +222,8 @@ try {
     $testResult = Test-SqlConnectionInternal `
         -Server $ServerInstance `
         -Db $Database `
+        -ExpectedServer $ExpectedServerName `
+        -AppName $ApplicationName `
         -TrustCert $TrustServerCertificate `
         -ConnectTimeout $ConnectTimeoutSeconds `
         -CommandTimeout $CommandTimeoutSeconds
@@ -215,10 +235,9 @@ try {
     if ($testResult.Success) {
         exit 0
     } else {
-        Write-Error "Connection failed: [$($testResult.ErrorCategory)] $($testResult.ErrorMessage)"
         exit 1
     }
 } catch {
-    Write-Error "Unexpected error: $($_.Exception.Message)"
+    [Console]::Error.WriteLine("Unexpected error: $($_.Exception.Message)")
     exit 3
 }
