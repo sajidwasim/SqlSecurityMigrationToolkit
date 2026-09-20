@@ -1,0 +1,65 @@
+{
+  "profileName": "discovery",
+  "description": "Read-only discovery of all online user databases on a single instance",
+  "version": "1.0.0",
+  "source": {
+    "instance": "SQL_INSTANCE_TO_DISCOVER",
+    "connection": {
+      "encrypt": true,
+      "trustServerCertificate": false,
+      "connectTimeoutSeconds": 15,
+      "commandTimeoutSeconds": 120
+    }
+  },
+  "target": {
+    "instance": "SQL_INSTANCE_TO_DISCOVER",
+    "connection": {
+      "encrypt": true,
+      "trustServerCertificate": false,
+      "connectTimeoutSeconds": 15,
+      "commandTimeoutSeconds": 120
+    }
+  },
+  "authentication": {
+    "mode": "WindowsIntegrated"
+  },
+  "scope": {
+    "mode": "discoveryOnly",
+    "databases": [],
+    "excludedDatabases": [],
+    "databaseMappings": [],
+    "templatePolicy": {
+      "enabled": false
+    }
+  },
+  "identityMappings": [],
+  "externalOwnershipDecisions": [],
+  "operationPolicies": {
+    "allowWindowsLogins": false,
+    "allowSqlLogins": false,
+    "allowMachineAccounts": false,
+    "allowCustomRoles": false,
+    "allowSchemas": false,
+    "allowDefaultSchemaChanges": false,
+    "allowDatabasePermissions": false,
+    "allowPrivilegedPermissions": false,
+    "allowDenies": false,
+    "allowPrivilegedRoles": false,
+    "allowServerSecurity": false,
+    "allowIdentityMapping": false,
+    "includeAllServerLogins": true,
+    "approveCommonTemplate": false,
+    "targetOnlyDisposition": "preserve"
+  },
+  "artifactPolicy": {
+    "outputDirectory": "./Results",
+    "secureOutputDirectory": true,
+    "manifestFormatVersion": 2,
+    "retentionDays": 30,
+    "reportFormats": ["csv", "json", "markdown"],
+    "redaction": {
+      "passwordHashes": true,
+      "sensitiveBinaryData": true
+    }
+  }
+}

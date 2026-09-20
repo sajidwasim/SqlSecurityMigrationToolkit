@@ -1,0 +1,84 @@
+{
+  "profileName": "windows-mapped",
+  "description": "Windows/AD identity migration with explicit SID-verified mappings",
+  "version": "1.0.0",
+  "source": {
+    "instance": "SOURCE_SQL_INSTANCE",
+    "connection": {
+      "encrypt": true,
+      "trustServerCertificate": false,
+      "connectTimeoutSeconds": 15,
+      "commandTimeoutSeconds": 120
+    }
+  },
+  "target": {
+    "instance": "TARGET_SQL_INSTANCE",
+    "connection": {
+      "encrypt": true,
+      "trustServerCertificate": false,
+      "connectTimeoutSeconds": 15,
+      "commandTimeoutSeconds": 120
+    }
+  },
+  "authentication": {
+    "mode": "WindowsIntegrated"
+  },
+  "scope": {
+    "mode": "allOnlineUserDatabases",
+    "databases": [],
+    "excludedDatabases": [
+      "DBA_Maintenance"
+    ],
+    "databaseMappings": [],
+    "templatePolicy": {
+      "enabled": false
+    }
+  },
+  "identityMappings": [
+    {
+      "sourceIdentity": "CORP\\OldAppGroup",
+      "targetIdentity": "CORP\\NewAppGroup",
+      "identityType": "WindowsGroup",
+      "approvedBy": "AD Admin",
+      "approvedDate": "2026-01-15T00:00:00Z",
+      "sidVerified": true
+    },
+    {
+      "sourceIdentity": "CORP\\LegacyService",
+      "targetIdentity": "CORP\\ModernService",
+      "identityType": "ServiceAccount",
+      "approvedBy": "DBA Team",
+      "approvedDate": "2026-01-15T00:00:00Z",
+      "sidVerified": true
+    }
+  ],
+  "externalOwnershipDecisions": [],
+  "operationPolicies": {
+    "allowWindowsLogins": true,
+    "allowSqlLogins": false,
+    "allowMachineAccounts": true,
+    "allowCustomRoles": true,
+    "allowSchemas": true,
+    "allowDefaultSchemaChanges": true,
+    "allowDatabasePermissions": true,
+    "allowPrivilegedPermissions": false,
+    "allowDenies": false,
+    "allowPrivilegedRoles": false,
+    "allowServerSecurity": false,
+    "allowIdentityMapping": true,
+    "includeAllServerLogins": false,
+    "approveCommonTemplate": false,
+    "targetOnlyDisposition": "preserve"
+  },
+  "artifactPolicy": {
+    "outputDirectory": "./Results",
+    "secureOutputDirectory": true,
+    "manifestFormatVersion": 2,
+    "retentionDays": 90,
+    "reportFormats": ["csv", "json", "markdown"],
+    "redaction": {
+      "passwordHashes": true,
+      "sensitiveBinaryData": true
+    }
+  }
+}

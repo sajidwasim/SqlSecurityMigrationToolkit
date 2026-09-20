@@ -1,0 +1,113 @@
+{
+  "profileName": "one-to-many",
+  "description": "One-to-many migration: source databases replicated to multiple targets using common template",
+  "version": "1.0.0",
+  "source": {
+    "instance": "SOURCE_SQL_INSTANCE",
+    "connection": {
+      "encrypt": true,
+      "trustServerCertificate": false,
+      "connectTimeoutSeconds": 15,
+      "commandTimeoutSeconds": 120
+    }
+  },
+  "target": {
+    "instance": "TARGET_SQL_INSTANCE",
+    "connection": {
+      "encrypt": true,
+      "trustServerCertificate": false,
+      "connectTimeoutSeconds": 15,
+      "commandTimeoutSeconds": 120
+    }
+  },
+  "authentication": {
+    "mode": "WindowsIntegrated"
+  },
+  "scope": {
+    "mode": "exactList",
+    "databases": [
+      "Template_DB_1",
+      "Template_DB_2",
+      "Template_DB_3"
+    ],
+    "excludedDatabases": [
+      "DBA_Maintenance"
+    ],
+    "databaseMappings": [
+      {
+        "sourceDatabase": "Template_DB_1",
+        "targetDatabase": "Target_DB_1_Main",
+        "mappingType": "oneToOne"
+      },
+      {
+        "sourceDatabase": "Template_DB_2",
+        "targetDatabase": "Target_DB_2_Main",
+        "mappingType": "oneToOne"
+      },
+      {
+        "sourceDatabase": "Template_DB_3",
+        "targetDatabase": "Target_DB_3_Main",
+        "mappingType": "oneToOne"
+      }
+    ],
+    "templatePolicy": {
+      "enabled": true,
+      "sourceDatabases": [
+        "Template_DB_1",
+        "Template_DB_2",
+        "Template_DB_3"
+      ],
+      "targetDatabases": [
+        "Target_DB_1_TenantA",
+        "Target_DB_1_TenantB",
+        "Target_DB_2_TenantA",
+        "Target_DB_2_TenantB",
+        "Target_DB_3_TenantA",
+        "Target_DB_3_TenantB"
+      ],
+      "evidenceThreshold": 1.0,
+      "allowedCategories": ["CommonDatabase", "ExternalOwnership", "ServerWide"],
+      "requireExplicitApproval": true
+    }
+  },
+  "identityMappings": [],
+  "externalOwnershipDecisions": [
+    {
+      "principalOrObject": "App_ReadOnly_Role",
+      "decisionType": "ExternallyManaged",
+      "evidenceReference": "APP-SEC-2026-001",
+      "approvedBy": "Application Team",
+      "approvedDate": "2026-01-15T00:00:00Z",
+      "scope": "Database",
+      "databases": ["Template_DB_1", "Template_DB_2", "Template_DB_3"]
+    }
+  ],
+  "operationPolicies": {
+    "allowWindowsLogins": false,
+    "allowSqlLogins": false,
+    "allowMachineAccounts": false,
+    "allowCustomRoles": true,
+    "allowSchemas": true,
+    "allowDefaultSchemaChanges": false,
+    "allowDatabasePermissions": true,
+    "allowPrivilegedPermissions": false,
+    "allowDenies": false,
+    "allowPrivilegedRoles": false,
+    "allowServerSecurity": false,
+    "allowIdentityMapping": false,
+    "includeAllServerLogins": false,
+    "approveCommonTemplate": false,
+    "targetOnlyDisposition": "preserve"
+  },
+  "artifactPolicy": {
+    "outputDirectory": "./Results",
+    "secureOutputDirectory": true,
+    "manifestFormatVersion": 2,
+    "retentionDays": 90,
+    "reportFormats": ["csv", "json", "markdown"],
+    "redaction": {
+      "passwordHashes": true,
+      "sensitiveBinaryData": true
+    }
+  }
+}

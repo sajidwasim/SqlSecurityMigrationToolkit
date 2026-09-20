@@ -1,0 +1,72 @@
+{
+  "profileName": "one-to-one",
+  "description": "Generic one-to-one database migration with exact name matching",
+  "version": "1.0.0",
+  "source": {
+    "instance": "SOURCE_SQL_INSTANCE",
+    "connection": {
+      "encrypt": true,
+      "trustServerCertificate": false,
+      "connectTimeoutSeconds": 15,
+      "commandTimeoutSeconds": 120
+    }
+  },
+  "target": {
+    "instance": "TARGET_SQL_INSTANCE",
+    "connection": {
+      "encrypt": true,
+      "trustServerCertificate": false,
+      "connectTimeoutSeconds": 15,
+      "commandTimeoutSeconds": 120
+    }
+  },
+  "authentication": {
+    "mode": "WindowsIntegrated"
+  },
+  "scope": {
+    "mode": "exactList",
+    "databases": [
+      "Database_A",
+      "Database_B",
+      "Database_C"
+    ],
+    "excludedDatabases": [
+      "DBA_Maintenance",
+      "TempDB_Restore_Test"
+    ],
+    "databaseMappings": [],
+    "templatePolicy": {
+      "enabled": false
+    }
+  },
+  "identityMappings": [],
+  "externalOwnershipDecisions": [],
+  "operationPolicies": {
+    "allowWindowsLogins": false,
+    "allowSqlLogins": false,
+    "allowMachineAccounts": false,
+    "allowCustomRoles": false,
+    "allowSchemas": false,
+    "allowDefaultSchemaChanges": false,
+    "allowDatabasePermissions": false,
+    "allowPrivilegedPermissions": false,
+    "allowDenies": false,
+    "allowPrivilegedRoles": false,
+    "allowServerSecurity": false,
+    "allowIdentityMapping": false,
+    "includeAllServerLogins": false,
+    "approveCommonTemplate": false,
+    "targetOnlyDisposition": "preserve"
+  },
+  "artifactPolicy": {
+    "outputDirectory": "./Results",
+    "secureOutputDirectory": true,
+    "manifestFormatVersion": 2,
+    "retentionDays": 90,
+    "reportFormats": ["csv", "json", "markdown"],
+    "redaction": {
+      "passwordHashes": true,
+      "sensitiveBinaryData": true
+    }
+  }
+}

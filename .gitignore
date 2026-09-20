@@ -1,0 +1,66 @@
+# SQL Security Migration Toolkit - Publication .gitignore
+
+# Results and session output
+Results/
+**/Results/
+
+# Local profiles and configuration
+config/local/
+
+# Inventory and manifest files
+*.inventory.json
+*.inventory.xml
+*.manifest.json
+
+# Hash files
+*.sqlhash
+
+# Log files
+*.log
+
+# Environment files
+.env
+.env.*
+
+# Credentials and secrets
+credentials/
+secrets/
+
+# Test artifacts
+test_output*.txt
+test_baseline.log
+__pycache__/
+*.pyc
+*.pyo
+
+# PowerShell transcripts and temporary files
+*.ps1xml
+*.tmp
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# Backup and archive files
+*.zip
+*.tar.gz
+*.7z
+*.bak
+
+# Generated reports (session-specific)
+**/FilteredCommonTemplate.csv
+**/FilteredCommonTemplate.json
+**/Session.log
+**/Summary.json
+**/Plan*.csv
+**/Execution*.csv
+**/ExecutionFailures.*

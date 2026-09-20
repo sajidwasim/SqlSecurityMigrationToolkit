@@ -1,0 +1,74 @@
+{
+  "profileName": "sql-auth-migration",
+  "description": "SQL Authentication login migration with protected credential handling",
+  "version": "1.0.0",
+  "source": {
+    "instance": "SOURCE_SQL_INSTANCE",
+    "connection": {
+      "encrypt": true,
+      "trustServerCertificate": false,
+      "connectTimeoutSeconds": 15,
+      "commandTimeoutSeconds": 120
+    }
+  },
+  "target": {
+    "instance": "TARGET_SQL_INSTANCE",
+    "connection": {
+      "encrypt": true,
+      "trustServerCertificate": false,
+      "connectTimeoutSeconds": 15,
+      "commandTimeoutSeconds": 120
+    }
+  },
+  "authentication": {
+    "mode": "SqlAuthentication",
+    "sqlCredentials": {
+      "sourceUsername": "migration_reader",
+      "sourcePasswordEnvVar": "MIGRATION_SOURCE_PWD",
+      "targetUsername": "migration_writer",
+      "targetPasswordEnvVar": "MIGRATION_TARGET_PWD"
+    }
+  },
+  "scope": {
+    "mode": "exactList",
+    "databases": [
+      "App_DB_Primary",
+      "App_DB_Secondary"
+    ],
+    "excludedDatabases": [],
+    "databaseMappings": [],
+    "templatePolicy": {
+      "enabled": false
+    }
+  },
+  "identityMappings": [],
+  "externalOwnershipDecisions": [],
+  "operationPolicies": {
+    "allowWindowsLogins": false,
+    "allowSqlLogins": true,
+    "allowMachineAccounts": false,
+    "allowCustomRoles": false,
+    "allowSchemas": false,
+    "allowDefaultSchemaChanges": false,
+    "allowDatabasePermissions": false,
+    "allowPrivilegedPermissions": false,
+    "allowDenies": false,
+    "allowPrivilegedRoles": false,
+    "allowServerSecurity": false,
+    "allowIdentityMapping": false,
+    "includeAllServerLogins": false,
+    "approveCommonTemplate": false,
+    "targetOnlyDisposition": "preserve"
+  },
+  "artifactPolicy": {
+    "outputDirectory": "./Results",
+    "secureOutputDirectory": true,
+    "manifestFormatVersion": 2,
+    "retentionDays": 90,
+    "reportFormats": ["csv", "json", "markdown"],
+    "redaction": {
+      "passwordHashes": true,
+      "sensitiveBinaryData": true
+    }
+  }
+}

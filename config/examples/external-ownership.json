@@ -1,0 +1,93 @@
+{
+  "profileName": "external-ownership",
+  "description": "Migration with explicit operator-supplied external ownership decisions (no application detection)",
+  "version": "1.0.0",
+  "source": {
+    "instance": "SOURCE_SQL_INSTANCE",
+    "connection": {
+      "encrypt": true,
+      "trustServerCertificate": false,
+      "connectTimeoutSeconds": 15,
+      "commandTimeoutSeconds": 120
+    }
+  },
+  "target": {
+    "instance": "TARGET_SQL_INSTANCE",
+    "connection": {
+      "encrypt": true,
+      "trustServerCertificate": false,
+      "connectTimeoutSeconds": 15,
+      "commandTimeoutSeconds": 120
+    }
+  },
+  "authentication": {
+    "mode": "WindowsIntegrated"
+  },
+  "scope": {
+    "mode": "allOnlineUserDatabases",
+    "databases": [],
+    "excludedDatabases": [
+      "DBA_Maintenance"
+    ],
+    "databaseMappings": [],
+    "templatePolicy": {
+      "enabled": false
+    }
+  },
+  "identityMappings": [],
+  "externalOwnershipDecisions": [
+    {
+      "principalOrObject": "App_Managed_Role",
+      "decisionType": "ExternallyManaged",
+      "evidenceReference": "TICKET-SEC-2026-042",
+      "approvedBy": "Application Owner",
+      "approvedDate": "2026-01-15T00:00:00Z",
+      "scope": "Global"
+    },
+    {
+      "principalOrObject": "ServiceAccount_Role",
+      "decisionType": "RequiresProvisioning",
+      "evidenceReference": "PROVISIONING-PLAN-2026-018",
+      "approvedBy": "Platform Team",
+      "approvedDate": "2026-01-15T00:00:00Z",
+      "scope": "Database",
+      "databases": ["Customer_DB", "Order_DB"]
+    },
+    {
+      "principalOrObject": "Legacy_Admin_Login",
+      "decisionType": "OperatorVerified",
+      "evidenceReference": "DBA-REVIEW-2026-007",
+      "approvedBy": "Senior DBA",
+      "approvedDate": "2026-01-15T00:00:00Z",
+      "scope": "Instance"
+    }
+  ],
+  "operationPolicies": {
+    "allowWindowsLogins": true,
+    "allowSqlLogins": false,
+    "allowMachineAccounts": false,
+    "allowCustomRoles": true,
+    "allowSchemas": true,
+    "allowDefaultSchemaChanges": true,
+    "allowDatabasePermissions": true,
+    "allowPrivilegedPermissions": true,
+    "allowDenies": true,
+    "allowPrivilegedRoles": true,
+    "allowServerSecurity": true,
+    "allowIdentityMapping": true,
+    "includeAllServerLogins": false,
+    "approveCommonTemplate": false,
+    "targetOnlyDisposition": "preserve"
+  },
+  "artifactPolicy": {
+    "outputDirectory": "./Results",
+    "secureOutputDirectory": true,
+    "manifestFormatVersion": 2,
+    "retentionDays": 90,
+    "reportFormats": ["csv", "json", "markdown"],
+    "redaction": {
+      "passwordHashes": true,
+      "sensitiveBinaryData": true
+    }
+  }
+}

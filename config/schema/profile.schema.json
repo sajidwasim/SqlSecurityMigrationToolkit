@@ -1,0 +1,311 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sqlsecuritymigration.example.com/schema/profile.schema.json",
+  "title": "SQL Security Migration Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["profileName", "source", "target", "scope", "operationPolicies", "artifactPolicy"],
+  "properties": {
+    "profileName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "description": "Unique profile identifier (used for output directory naming)"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 512,
+      "description": "Human-readable description of this migration profile"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "default": "1.0.0",
+      "description": "Profile schema version"
+    },
+    "source": {
+      "type": "object",
+      "required": ["instance"],
+      "additionalProperties": false,
+      "properties": {
+        "instance": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Source SQL Server instance name (e.g., 'SQLPROD01' or 'SQLPROD01\\INSTANCE')"
+        },
+        "connection": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "encrypt": { "type": "boolean", "default": true },
+            "trustServerCertificate": { "type": "boolean", "default": false },
+            "connectTimeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 120, "default": 15 },
+            "commandTimeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 1800, "default": 120 },
+            "applicationName": { "type": "string", "maxLength": 128, "default": "SQL Security Migration Toolkit" },
+            "pooling": { "type": "boolean", "default": false }
+          },
+          "default": {}
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "required": ["instance"],
+      "additionalProperties": false,
+      "properties": {
+        "instance": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Target SQL Server instance name"
+        },
+        "connection": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "encrypt": { "type": "boolean", "default": true },
+            "trustServerCertificate": { "type": "boolean", "default": false },
+            "connectTimeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 120, "default": 15 },
+            "commandTimeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 1800, "default": 120 },
+            "applicationName": { "type": "string", "maxLength": 128, "default": "SQL Security Migration Toolkit" },
+            "pooling": { "type": "boolean", "default": false }
+          },
+          "default": {}
+        }
+      }
+    },
+    "authentication": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["WindowsIntegrated", "SqlAuthentication"],
+          "default": "WindowsIntegrated",
+          "description": "Authentication mode for both source and target"
+        },
+        "sqlCredentials": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "sourceUsername": { "type": "string", "description": "Source SQL login (for SqlAuthentication mode)" },
+            "sourcePasswordEnvVar": { "type": "string", "description": "Environment variable name containing source password" },
+            "targetUsername": { "type": "string", "description": "Target SQL login (for SqlAuthentication mode)" },
+            "targetPasswordEnvVar": { "type": "string", "description": "Environment variable name containing target password" }
+          }
+        }
+      },
+      "default": { "mode": "WindowsIntegrated" }
+    },
+    "scope": {
+      "type": "object",
+      "required": ["mode"],
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["exactList", "allOnlineUserDatabases", "patternInclude", "patternExclude", "discoveryOnly"],
+          "default": "exactList",
+          "description": "How to select source databases for migration"
+        },
+        "databases": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "uniqueItems": true,
+          "description": "Explicit database names (required for exactList mode)"
+        },
+        "includePattern": {
+          "type": "string",
+          "description": "Regex pattern for databases to include (patternInclude mode)"
+        },
+        "excludePattern": {
+          "type": "string",
+          "description": "Regex pattern for databases to exclude (patternExclude mode)"
+        },
+        "excludedDatabases": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "uniqueItems": true,
+          "default": [],
+          "description": "Database names to always exclude from migration scope"
+        },
+        "databaseMappings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["sourceDatabase", "targetDatabase"],
+            "additionalProperties": false,
+            "properties": {
+              "sourceDatabase": { "type": "string", "minLength": 1 },
+              "targetDatabase": { "type": "string", "minLength": 1 },
+              "mappingType": {
+                "type": "string",
+                "enum": ["oneToOne", "oneToManyTemplate"],
+                "default": "oneToOne",
+                "description": "oneToOne = exact security replication; oneToManyTemplate = apply common template"
+              }
+            }
+          },
+          "uniqueItems": true,
+          "description": "Explicit source-to-target database mappings"
+        },
+        "templatePolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "sourceDatabases": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Source databases to include in common template derivation"
+            },
+            "targetDatabases": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Additional target databases receiving the common template"
+            },
+            "evidenceThreshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 1.0,
+              "description": "Fraction of source databases that must have an item for it to be in the template (1.0 = all)"
+            },
+            "allowedCategories": {
+              "type": "array",
+              "items": { "type": "string", "enum": ["CommonDatabase", "ExternalOwnership", "ServerWide"] },
+              "default": ["CommonDatabase"],
+              "description": "Template item categories allowed for additional databases"
+            },
+            "requireExplicitApproval": { "type": "boolean", "default": true }
+          },
+          "default": {}
+        }
+      }
+    },
+    "identityMappings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["sourceIdentity", "targetIdentity", "identityType"],
+        "additionalProperties": false,
+        "properties": {
+          "sourceIdentity": { "type": "string", "minLength": 1 },
+          "targetIdentity": { "type": "string", "minLength": 1 },
+          "identityType": {
+            "type": "string",
+            "enum": ["WindowsLogin", "WindowsGroup", "SqlLogin", "MachineAccount", "ServiceAccount"],
+            "description": "Type of identity being mapped"
+          },
+          "approvedBy": { "type": "string", "description": "Approver name/reference" },
+          "approvedDate": { "type": "string", "format": "date-time" },
+          "sidVerified": { "type": "boolean", "default": false, "description": "Whether SID equivalence was authoritatively verified" }
+        }
+      },
+      "uniqueItems": true,
+      "default": [],
+      "description": "Explicit identity mappings (source -> target). Empty = no remapping."
+    },
+    "externalOwnershipDecisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["principalOrObject", "decisionType", "evidenceReference"],
+        "additionalProperties": false,
+        "properties": {
+          "principalOrObject": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Principal name, role name, or securable identifier"
+          },
+          "decisionType": {
+            "type": "string",
+            "enum": ["ExternallyManaged", "OperatorVerified", "RequiresProvisioning"],
+            "description": "ExternallyManaged = managed outside SQL Server; OperatorVerified = operator confirmed current state; RequiresProvisioning = needs external provisioning step"
+          },
+          "evidenceReference": {
+            "type": "string",
+            "description": "Reference to evidence (ticket, document, approval record)"
+          },
+          "approvedBy": { "type": "string", "description": "Approver name/reference" },
+          "approvedDate": { "type": "string", "format": "date-time" },
+          "scope": {
+            "type": "string",
+            "enum": ["Global", "Database", "Instance"],
+            "default": "Database",
+            "description": "Scope of this decision"
+          },
+          "databases": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Specific databases this applies to (empty = all in scope)"
+          }
+        }
+      },
+      "uniqueItems": true,
+      "default": [],
+      "description": "Explicit operator-supplied decisions for security managed outside SQL Server. No automatic detection."
+    },
+    "operationPolicies": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allowWindowsLogins": { "type": "boolean", "default": false },
+        "allowSqlLogins": { "type": "boolean", "default": false },
+        "allowMachineAccounts": { "type": "boolean", "default": false },
+        "allowCustomRoles": { "type": "boolean", "default": false },
+        "allowSchemas": { "type": "boolean", "default": false },
+        "allowDefaultSchemaChanges": { "type": "boolean", "default": false },
+        "allowDatabasePermissions": { "type": "boolean", "default": false },
+        "allowPrivilegedPermissions": { "type": "boolean", "default": false },
+        "allowDenies": { "type": "boolean", "default": false },
+        "allowPrivilegedRoles": { "type": "boolean", "default": false },
+        "allowServerSecurity": { "type": "boolean", "default": false },
+        "allowIdentityMapping": { "type": "boolean", "default": false },
+        "includeAllServerLogins": { "type": "boolean", "default": false },
+        "approveCommonTemplate": { "type": "boolean", "default": false },
+        "targetOnlyDisposition": {
+          "type": "string",
+          "enum": ["preserve", "report", "remove"],
+          "default": "preserve",
+          "description": "How to handle target-only security objects"
+        }
+      },
+      "default": {}
+    },
+    "artifactPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "outputDirectory": {
+          "type": "string",
+          "description": "Base output directory (relative or absolute). If empty, uses ./Results/"
+        },
+        "secureOutputDirectory": {
+          "type": "boolean",
+          "default": true,
+          "description": "Attempt to tighten ACLs on output directory to current user only"
+        },
+        "manifestFormatVersion": { "type": "integer", "default": 2 },
+        "retentionDays": { "type": "integer", "minimum": 0, "default": 90, "description": "0 = no automatic cleanup" },
+        "reportFormats": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["csv", "json", "markdown"] },
+          "default": ["csv", "json", "markdown"],
+          "uniqueItems": true
+        },
+        "redaction": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "passwordHashes": { "type": "boolean", "default": true },
+            "sensitiveBinaryData": { "type": "boolean", "default": true }
+          }
+        }
+      },
+      "default": {}
+    }
+  }
+}

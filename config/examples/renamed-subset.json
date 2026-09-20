@@ -1,0 +1,97 @@
+{
+  "profileName": "renamed-subset",
+  "description": "Migration of a subset of databases with renamed targets (1:1 explicit mappings)",
+  "version": "1.0.0",
+  "source": {
+    "instance": "SOURCE_SQL_INSTANCE",
+    "connection": {
+      "encrypt": true,
+      "trustServerCertificate": false,
+      "connectTimeoutSeconds": 15,
+      "commandTimeoutSeconds": 120
+    }
+  },
+  "target": {
+    "instance": "TARGET_SQL_INSTANCE",
+    "connection": {
+      "encrypt": true,
+      "trustServerCertificate": false,
+      "connectTimeoutSeconds": 15,
+      "commandTimeoutSeconds": 120
+    }
+  },
+  "authentication": {
+    "mode": "WindowsIntegrated"
+  },
+  "scope": {
+    "mode": "exactList",
+    "databases": [
+      "Source_DB_Primary",
+      "Source_DB_Secondary",
+      "Source_DB_Reporting"
+    ],
+    "excludedDatabases": [
+      "DBA_Maintenance",
+      "Legacy_Archive"
+    ],
+    "databaseMappings": [
+      {
+        "sourceDatabase": "Source_DB_Primary",
+        "targetDatabase": "Target_DB_Main",
+        "mappingType": "oneToOne"
+      },
+      {
+        "sourceDatabase": "Source_DB_Secondary",
+        "targetDatabase": "Target_DB_Replica",
+        "mappingType": "oneToOne"
+      },
+      {
+        "sourceDatabase": "Source_DB_Reporting",
+        "targetDatabase": "Target_DB_Analytics",
+        "mappingType": "oneToOne"
+      }
+    ],
+    "templatePolicy": {
+      "enabled": false
+    }
+  },
+  "identityMappings": [
+    {
+      "sourceIdentity": "DOMAIN\\OldServiceAccount",
+      "targetIdentity": "DOMAIN\\NewServiceAccount",
+      "identityType": "ServiceAccount",
+      "approvedBy": "DBA Team",
+      "approvedDate": "2026-01-15T00:00:00Z",
+      "sidVerified": true
+    }
+  ],
+  "externalOwnershipDecisions": [],
+  "operationPolicies": {
+    "allowWindowsLogins": true,
+    "allowSqlLogins": false,
+    "allowMachineAccounts": false,
+    "allowCustomRoles": true,
+    "allowSchemas": true,
+    "allowDefaultSchemaChanges": true,
+    "allowDatabasePermissions": true,
+    "allowPrivilegedPermissions": false,
+    "allowDenies": false,
+    "allowPrivilegedRoles": false,
+    "allowServerSecurity": false,
+    "allowIdentityMapping": true,
+    "includeAllServerLogins": false,
+    "approveCommonTemplate": false,
+    "targetOnlyDisposition": "preserve"
+  },
+  "artifactPolicy": {
+    "outputDirectory": "./Results",
+    "secureOutputDirectory": true,
+    "manifestFormatVersion": 2,
+    "retentionDays": 90,
+    "reportFormats": ["csv", "json", "markdown"],
+    "redaction": {
+      "passwordHashes": true,
+      "sensitiveBinaryData": true
+    }
+  }
+}
