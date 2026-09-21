@@ -6,7 +6,7 @@ $root=Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 foreach($path in @('Invoke-SqlSecurityAudit.ps1','Compare-SqlSecurityAudit.ps1',
     'modules\SecurityAudit.psm1','modules\AuditExcel.psm1')){
     $errors=$null;$tokens=$null
-    [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $root $path),[ref]$tokens,[ref]$errors)
+    [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root $path),[ref]$tokens,[ref]$errors)
     if($errors.Count -gt 0){throw "PowerShell parser errors in $path : $($errors -join '; ')"}
 }
 Import-Module (Join-Path $root 'modules\AuditExcel.psm1') -Force
