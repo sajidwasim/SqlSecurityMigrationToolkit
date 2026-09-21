@@ -20,7 +20,7 @@ try {
     $zip=[IO.Compression.ZipFile]::OpenRead($path)
     try {
         $sheet=$zip.GetEntry('xl/worksheets/sheet1.xml')
-        if($null -eq $sheet){throw 'XLSX worksheet missing.'}
+        if($null -eq $sheet){throw ('XLSX worksheet missing. Actual ZIP entries: '+(($zip.Entries|ForEach-Object {$_.FullName}) -join ', '))}
         $reader=[IO.StreamReader]::new($sheet.Open())
         try{$xml=$reader.ReadToEnd()}finally{$reader.Dispose()}
         if($xml -notmatch 't="inlineStr"' -or $xml -match '<f>'){throw 'Excel formula prevention failed.'}
@@ -47,7 +47,7 @@ try {
     $zip=[IO.Compression.ZipFile]::OpenRead($comparison[0].FullName)
     try {
         $sheet=$zip.GetEntry('xl/worksheets/sheet2.xml')
-        if($null -eq $sheet){throw 'Differences worksheet missing.'}
+        if($null -eq $sheet){throw ('Differences worksheet missing. Actual ZIP entries: '+(($zip.Entries|ForEach-Object {$_.FullName}) -join ', '))}
         $reader=[IO.StreamReader]::new($sheet.Open())
         try{$diffXml=$reader.ReadToEnd()}finally{$reader.Dispose()}
         if($diffXml -notmatch 'SOURCE_RECORD_COUNT_DIFFERS'){throw 'Expected synthetic missing role membership not detected.'}
