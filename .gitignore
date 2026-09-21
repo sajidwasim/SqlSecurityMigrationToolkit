@@ -12,6 +12,12 @@ config/local/
 *.inventory.xml
 *.manifest.json
 
+# Security audit evidence: always private and local
+SqlSecurityAudit_*.json
+SqlSecurityAudit_*.xlsx
+SqlSecurityComparison_*.xlsx
+**/AuditReports/
+
 # Hash files
 *.sqlhash
 
