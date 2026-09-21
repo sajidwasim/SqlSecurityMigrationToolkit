@@ -12,7 +12,7 @@ function ConvertTo-AuditXml([object]$Value) {
 }
 function Get-AuditColumn([int]$Index) {
     $text=''
-    while($Index -gt 0){$Index--; $text=[char](65+($Index % 26))+$text; $Index=[int][math]::Floor($Index/26)}
+    while($Index -gt 0){$Index--; $text=([string][char](65+($Index % 26)))+$text; $Index=[int][math]::Floor($Index/26)}
     return $text
 }
 function Write-AuditText([string]$Path,[string]$Text) {
@@ -69,7 +69,18 @@ function Export-AuditWorkbook {
         Write-AuditText (Join-Path $root '_rels\.rels') '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'
         Write-AuditText (Join-Path $root 'xl\workbook.xml') $book.ToString()
         Write-AuditText (Join-Path $root 'xl\_rels\workbook.xml.rels') $rels.ToString()
-        [IO.Compression.ZipFile]::CreateFromDirectory($root,$Path,[IO.Compression.CompressionLevel]::Optimal,$false)
+        # .NET Framework ZipFile.CreateFromDirectory preserves backslashes on Windows;
+        # OpenXML part names MUST use forward slashes. Create canonical entries explicitly.
+        $archive=[IO.Compression.ZipFile]::Open($Path,[IO.Compression.ZipArchiveMode]::Create)
+        try {
+            foreach($file in Get-ChildItem -LiteralPath $root -File -Recurse){
+                $entryName=$file.FullName.Substring($root.Length+1).Replace('\','/')
+                $entry=$archive.CreateEntry($entryName,[IO.Compression.CompressionLevel]::Optimal)
+                $input=[IO.File]::OpenRead($file.FullName)
+                $output=$entry.Open()
+                try{$input.CopyTo($output)}finally{$output.Dispose();$input.Dispose()}
+            }
+        }finally{$archive.Dispose()}
     }finally{if(Test-Path -LiteralPath $root){Remove-Item -LiteralPath $root -Recurse -Force}}
 }
 Export-ModuleMember -Function Export-AuditWorkbook
