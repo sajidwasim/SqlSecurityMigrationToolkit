@@ -64,10 +64,12 @@ SELECT name AS SchemaName, USER_NAME(principal_id) AS OwnerName
 FROM sys.schemas ORDER BY name;
 '@
     Objects = @'
-SELECT SCHEMA_NAME(schema_id) AS SchemaName, name AS ObjectName,
-       type AS ObjectType, type_desc AS ObjectTypeDescription,
-       USER_NAME(COALESCE(principal_id,SCHEMA_ID('dbo'))) AS ExplicitOrFallbackOwner
-FROM sys.objects WHERE is_ms_shipped=0 ORDER BY schema_id,name;
+SELECT s.name AS SchemaName, o.name AS ObjectName,
+       o.type AS ObjectType, o.type_desc AS ObjectTypeDescription,
+       USER_NAME(COALESCE(o.principal_id,s.principal_id)) AS ExplicitOrFallbackOwner
+FROM sys.objects AS o
+JOIN sys.schemas AS s ON s.schema_id=o.schema_id
+WHERE o.is_ms_shipped=0 ORDER BY s.name,o.name;
 '@
     ConnectionEncryption = @'
 SELECT encrypt_option AS EncryptOption, auth_scheme AS AuthenticationScheme
