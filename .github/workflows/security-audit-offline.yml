@@ -1,0 +1,24 @@
+name: Security audit offline tests
+on:
+  pull_request:
+    paths:
+      - 'Invoke-SqlSecurityAudit.ps1'
+      - 'Compare-SqlSecurityAudit.ps1'
+      - 'modules/SecurityAudit.psm1'
+      - 'modules/AuditExcel.psm1'
+      - 'tests/Test-SqlSecurityAudit.ps1'
+      - '.github/workflows/security-audit-offline.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-offline:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Offline parser, XLSX and comparison regression
+        shell: powershell
+        run: .\tests\Test-SqlSecurityAudit.ps1
