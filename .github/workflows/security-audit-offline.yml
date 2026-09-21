@@ -7,6 +7,8 @@ on:
       - 'modules/SecurityAudit.psm1'
       - 'modules/AuditExcel.psm1'
       - 'tests/Test-SqlSecurityAudit.ps1'
+      - 'README.md'
+      - 'docs/SECURITY-AUDIT.md'
       - '.github/workflows/security-audit-offline.yml'
   workflow_dispatch:
 permissions:
