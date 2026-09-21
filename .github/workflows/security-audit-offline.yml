@@ -14,11 +14,17 @@ permissions:
 jobs:
   windows-offline:
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Offline parser, XLSX and comparison regression
+      - name: Audit parser, XLSX and synthetic reconciliation
         shell: powershell
         run: .\tests\Test-SqlSecurityAudit.ps1
+      - name: Existing migration offline unit tests
+        shell: powershell
+        run: python -m unittest discover -s tests -p 'test_*.py'
+      - name: Existing Windows smoke test
+        shell: powershell
+        run: .\tests\SmokeTest.ps1
